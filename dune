@@ -1,0 +1,9 @@
+(executable
+ (name main)
+ (public_name ocamyul)
+ (libraries compiler-libs.common digestif))
+
+(env
+ (dev
+  (flags
+   (:standard -warn-error -a))))
