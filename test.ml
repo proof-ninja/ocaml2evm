@@ -7,7 +7,6 @@ module SimpleStrage : sig
   val twice : int -> storage -> int * storage
 end = struct
   type storage = int
-  type hoge = { unko : int; unko2 : string }
 
   let set n s = ((), n)
   let get n s = (s, s)

@@ -138,7 +138,7 @@ and string_of_yul_dialect = function
       "sstore(" ^ string_of_yul_exp x ^ ", " ^ string_of_yul_exp y ^ ")"
   | Caller -> "caller()"
   | Callvalue -> "callvalue()"
-  | Calldataload x -> "add(" ^ string_of_yul_exp x ^ ")"
+  | Calldataload x -> "calldataload(" ^ string_of_yul_exp x ^ ")"
   | Datasize x -> "datasize(\"" ^ x ^ "\")"
   | Dataoffset x -> "dataoffset(\"" ^ x ^ "\")"
   | Datacopy (x, y, z) ->

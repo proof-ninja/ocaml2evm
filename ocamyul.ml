@@ -72,7 +72,10 @@ let selector_def =
       [],
       Some return_arg,
       [
-        Assign ((return_arg, []), EVM (Shr (Literal (Dec 224), ID return_arg)));
+        Assign
+          ( (return_arg, []),
+            EVM (Shr (Literal (Dec 224), EVM (Calldataload (Literal (Dec 0)))))
+          );
       ] )
 
 let decode_as_uint_def =
