@@ -3,19 +3,19 @@ open Typedtree
 open Asttypes
 open Path
 
+(* for keccak256 *)
+open Digestif
+
 (* Yul and ABI *)
 open Yul_ast
 open Abi_json
-
-(* for keccak256 *)
-open Digestif
 
 exception Not_implemented
 exception Undefined_storage
 exception Not_allowed_function
 
 (* names of default runtime *)
-let runtime = "runtime"
+let runtime = Strlit "runtime"
 
 (* deploy code part *)
 let deploy_code =
@@ -139,19 +139,12 @@ let abi_output_of_typ s =
   else raise Not_implemented
 
 let keccak_256_for_abi func_sig =
-  "0x"
-  ^ String.sub
-      (KECCAK_256.to_hex
-         (KECCAK_256.get (KECCAK_256.feed_string KECCAK_256.empty func_sig)))
-      0 8
-
-let feed_string_of_function func_name inputs =
-  let rec aux f = function
-    | [] -> ""
-    | [ { input_type = x; _ } ] -> f x
-    | { input_type = x; _ } :: xs -> f x ^ aux f xs
-  in
-  func_name ^ "(" ^ aux string_of_param_type inputs ^ ")"
+  Strlit
+    ("0x"
+    ^ String.sub
+        (KECCAK_256.to_hex
+           (KECCAK_256.get (KECCAK_256.feed_string KECCAK_256.empty func_sig)))
+        0 8)
 
 let params_in_case inputs =
   let decoder = function
@@ -207,15 +200,18 @@ let abi_of_sig stor = function
             let func_name = Ident.name name in
             let inputs = abi_input_of_typ arg in
             let outputs = abi_output_of_typ ret in
-            ( {
+            let abi =
+              {
                 abi_name = func_name;
                 abi_type = Func;
                 abi_inputs = inputs;
                 abi_outputs = outputs;
                 abi_mutability = Nonpayable;
-              },
+              }
+            in
+            ( abi,
               ( func_name,
-                keccak_256_for_abi (feed_string_of_function func_name inputs),
+                keccak_256_for_abi (signature_of_function abi),
                 params_in_case inputs,
                 returner_in_case outputs ) )
           else raise Not_implemented
@@ -235,10 +231,6 @@ let rec translate_exp = function
           else raise Not_implemented
       | _ -> raise Not_implemented)
   | _ -> raise Not_implemented
-
-(* let if_return = function
-   | Texp_construct (_, { Types.cstr_name = "()"; _ }, []) -> false
-   | _ -> true *)
 
 (* splitting module structure to types and external vals and internal vas *)
 let rec split_module_str = function
@@ -317,7 +309,7 @@ let translate_external_func func_sigs = function
                     [ Ident.unique_name arg ],
                     return_arg,
                     [
-                      Assign
+                      Let
                         ( (Ident.unique_name storage, []),
                           FunctionCall (get_storage, []) );
                       Exp (FunctionCall (set_storage, [ translate_exp e2 ]));
@@ -328,7 +320,7 @@ let translate_external_func func_sigs = function
       | None -> raise Not_implemented)
   | _ -> raise Not_implemented
 
-let backend info Typedtree.{ structure; _ } =
+let backend _ Typedtree.{ structure; _ } =
   match structure with
   | {
    str_items =
@@ -362,33 +354,106 @@ let backend info Typedtree.{ structure; _ } =
      ];
    _;
   } ->
+      let contract_name = Ident.name contract_name in
+      (* getting storage id and signatures *)
       let stor, sigs = split_module_sig sigs in
       let stor = storage_name stor in
+      (* getting ABI and function signatures *)
       let abis, func_sigs = pairlist_to_listpair (abi_of_sig stor) sigs in
-      let abis = List.map string_of_abi abis in
-      let types, exps = split_module_str items in
+      (* getting val expression (types are not yet implemented) *)
+      let _, exps = split_module_str items in
+      (* getting function declarations and dispatcher cases *)
       let funcs, cases =
         pairlist_to_listpair (translate_external_func func_sigs) exps
       in
+      (* code fragment: dispatcher *)
       let dispatcher =
         let cases = List.filter_map (fun x -> x) cases in
         Switch (FunctionCall (selector, []), cases, default_revert_def)
       in
-      (* print string of ABI *)
-      print_endline
-        (List.fold_left
-           (fun x y -> x ^ ",\n" ^ y)
-           (List.hd abis) (List.tl abis));
-      print_newline ();
-      (* print Yul object *)
-      print_endline
-        (string_of_yul
-           (Object
-              ( Ident.name contract_name,
-                deploy_code,
-                Some
-                  (Object
-                     ( runtime,
-                       Code ((dispatcher :: funcs) @ default_function_defs),
-                       None )) )))
+      (* generating whole Yul code *)
+      let yul_code =
+        json_string_of_yul
+          (Object
+             ( Strlit contract_name,
+               deploy_code,
+               Some
+                 (Object
+                    ( runtime,
+                      Code ((dispatcher :: funcs) @ default_function_defs),
+                      None )) ))
+      in
+      (* json provided for solc *)
+      let yul_json : Yojson.Basic.t =
+        `Assoc
+          [
+            ("language", `String "Yul");
+            ( "sources",
+              `Assoc
+                [ ("destructible", `Assoc [ ("content", `String yul_code) ]) ]
+            );
+            ( "settings",
+              `Assoc
+                [
+                  ( "outputSelection",
+                    `Assoc
+                      [
+                        ( "*",
+                          `Assoc
+                            [
+                              ( "*",
+                                `List
+                                  [
+                                    `String "evm.bytecode.object";
+                                    `String "evm.deployedBytecode.object";
+                                  ] );
+                            ] );
+                      ] );
+                ] );
+          ]
+      in
+      (* solc compilation result *)
+      let tmp_json_name = "___" ^ contract_name ^ ".json" in
+      Yojson.Basic.to_file tmp_json_name yul_json;
+      let compiled_json =
+        Unix.open_process_in ("solc --standard-json " ^ tmp_json_name)
+        |> Yojson.Basic.from_channel
+      in
+      Sys.remove tmp_json_name;
+      (* getting required values *)
+      let evm_field =
+        compiled_json
+        |> Yojson.Basic.Util.member "contracts"
+        |> Yojson.Basic.Util.member "destructible"
+        |> Yojson.Basic.Util.member contract_name
+        |> Yojson.Basic.Util.member "evm"
+      in
+      let bytecode : Yojson.Basic.t =
+        `Assoc
+          [
+            ( "bytecode",
+              evm_field
+              |> Yojson.Basic.Util.member "bytecode"
+              |> Yojson.Basic.Util.member "object" );
+          ]
+      in
+      let deployed_bytecode : Yojson.Basic.t =
+        `Assoc
+          [
+            ( "deployedBytecode",
+              evm_field
+              |> Yojson.Basic.Util.member "deployedBytecode"
+              |> Yojson.Basic.Util.member "object" );
+          ]
+      in
+      (* combining ABI and solc compilation result  *)
+      let result_json =
+        List.fold_left Yojson.Basic.Util.combine
+          (`Assoc [ ("contractName", `String contract_name) ])
+          [ json_of_abis abis; bytecode; deployed_bytecode ]
+        |> Yojson.Basic.pretty_to_string
+      in
+      let result_chan = open_out (contract_name ^ ".json") in
+      output_string result_chan result_json;
+      close_out result_chan
   | _ -> raise Not_implemented

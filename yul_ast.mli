@@ -20,7 +20,7 @@ and default = Default of block
 and idlist = id * id list
 and id = string
 and lit = Hex of int | Dec of int | Bool of bool | Str of strlit
-and strlit = string
+and strlit = Strlit of string
 
 and dialect =
   | Add of (exp * exp)
@@ -51,3 +51,4 @@ and obj = Object of (strlit * code * obj option)
 and code = Code of block
 
 val string_of_yul : obj -> string
+val json_string_of_yul : obj -> string

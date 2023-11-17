@@ -20,7 +20,7 @@ and default = Default of block
 and idlist = id * id list
 and id = string
 and lit = Hex of int | Dec of int | Bool of bool | Str of strlit
-and strlit = string
+and strlit = Strlit of string
 
 and dialect =
   | Add of (exp * exp)
@@ -73,7 +73,7 @@ and string_of_yul_statement n = function
   | Block b -> string_of_yul_block n b
   | FunctionDef (func_name, args, ret, body) ->
       let ret = match ret with Some x -> "-> " ^ x ^ " " | None -> "" in
-      indent_depth_to_indent n ^ func_name ^ " ("
+      indent_depth_to_indent n ^ "function " ^ func_name ^ " ("
       ^ string_of_args (fun x -> x) args
       ^ ") " ^ ret ^ string_of_yul_block n body
   | Let (vars, e) ->
@@ -110,44 +110,43 @@ and string_of_yul_lit = function
   | Hex x -> hex_of_int x
   | Dec x -> string_of_int x
   | Bool x -> string_of_bool x
-  | Str x -> x
+  | Str x -> string_of_strlit x
+
+and string_of_strlit = function Strlit x -> "\"" ^ x ^ "\""
 
 and string_of_yul_dialect = function
-  | Add (x, y) ->
-      "add(" ^ string_of_yul_exp x ^ ", " ^ string_of_yul_exp y ^ ")"
-  | Sub (x, y) ->
-      "sub(" ^ string_of_yul_exp x ^ ", " ^ string_of_yul_exp y ^ ")"
-  | Mul (x, y) ->
-      "mul(" ^ string_of_yul_exp x ^ ", " ^ string_of_yul_exp y ^ ")"
-  | Div (x, y) ->
-      "div(" ^ string_of_yul_exp x ^ ", " ^ string_of_yul_exp y ^ ")"
-  | Not x -> "not(" ^ string_of_yul_exp x ^ ")"
-  | Lt (x, y) -> "lt(" ^ string_of_yul_exp x ^ ", " ^ string_of_yul_exp y ^ ")"
-  | Gt (x, y) -> "gt(" ^ string_of_yul_exp x ^ ", " ^ string_of_yul_exp y ^ ")"
-  | Eq (x, y) -> "eq(" ^ string_of_yul_exp x ^ ", " ^ string_of_yul_exp y ^ ")"
-  | And (x, y) ->
-      "and(" ^ string_of_yul_exp x ^ ", " ^ string_of_yul_exp y ^ ")"
-  | Or (x, y) -> "or(" ^ string_of_yul_exp x ^ ", " ^ string_of_yul_exp y ^ ")"
-  | Shr (x, y) ->
-      "shr(" ^ string_of_yul_exp x ^ ", " ^ string_of_yul_exp y ^ ")"
-  | Mload x -> "mload(" ^ string_of_yul_exp x ^ ")"
-  | Mstore (x, y) ->
-      "mstore(" ^ string_of_yul_exp x ^ ", " ^ string_of_yul_exp y ^ ")"
-  | Sload x -> "sload(" ^ string_of_yul_exp x ^ ")"
-  | Sstore (x, y) ->
-      "sstore(" ^ string_of_yul_exp x ^ ", " ^ string_of_yul_exp y ^ ")"
-  | Caller -> "caller()"
-  | Callvalue -> "callvalue()"
-  | Calldataload x -> "calldataload(" ^ string_of_yul_exp x ^ ")"
-  | Datasize x -> "datasize(\"" ^ x ^ "\")"
-  | Dataoffset x -> "dataoffset(\"" ^ x ^ "\")"
-  | Datacopy (x, y, z) ->
-      "datacopy(" ^ string_of_yul_exp x ^ ", " ^ string_of_yul_exp y ^ ", "
-      ^ string_of_yul_exp z ^ ")"
-  | Return (x, y) ->
-      "return(" ^ string_of_yul_exp x ^ ", " ^ string_of_yul_exp y ^ ")"
-  | Revert (x, y) ->
-      "revert(" ^ string_of_yul_exp x ^ ", " ^ string_of_yul_exp y ^ ")"
+  | Add x -> "add" ^ string_of_dialect_arg_2 x
+  | Sub x -> "sub" ^ string_of_dialect_arg_2 x
+  | Mul x -> "mul" ^ string_of_dialect_arg_2 x
+  | Div x -> "div" ^ string_of_dialect_arg_2 x
+  | Not x -> "not" ^ string_of_dialect_arg_1 x
+  | Lt x -> "lt" ^ string_of_dialect_arg_2 x
+  | Gt x -> "gt" ^ string_of_dialect_arg_2 x
+  | Eq x -> "eq" ^ string_of_dialect_arg_2 x
+  | And x -> "and" ^ string_of_dialect_arg_2 x
+  | Or x -> "or" ^ string_of_dialect_arg_2 x
+  | Shr x -> "shr" ^ string_of_dialect_arg_2 x
+  | Mload x -> "mload" ^ string_of_dialect_arg_1 x
+  | Mstore x -> "mstore" ^ string_of_dialect_arg_2 x
+  | Sload x -> "sload" ^ string_of_dialect_arg_1 x
+  | Sstore x -> "sstore" ^ string_of_dialect_arg_2 x
+  | Caller -> "caller" ^ "()"
+  | Callvalue -> "callvalue" ^ "()"
+  | Calldataload x -> "calldataload" ^ string_of_dialect_arg_1 x
+  | Datasize x -> "datasize" ^ "(" ^ string_of_strlit x ^ ")"
+  | Dataoffset x -> "dataoffset" ^ "(" ^ string_of_strlit x ^ ")"
+  | Datacopy x -> "datacopy" ^ string_of_dialect_arg_3 x
+  | Return x -> "return" ^ string_of_dialect_arg_2 x
+  | Revert x -> "return" ^ string_of_dialect_arg_2 x
+
+and string_of_dialect_arg_1 x = "(" ^ string_of_yul_exp x ^ ")"
+
+and string_of_dialect_arg_2 (x, y) =
+  "(" ^ string_of_yul_exp x ^ ", " ^ string_of_yul_exp y ^ ")"
+
+and string_of_dialect_arg_3 (x, y, z) =
+  "(" ^ string_of_yul_exp x ^ ", " ^ string_of_yul_exp y ^ ", "
+  ^ string_of_yul_exp z ^ ")"
 
 and string_of_yul_code n = function
   | Code b -> "code " ^ string_of_yul_block n b
@@ -155,7 +154,7 @@ and string_of_yul_code n = function
 and string_of_yul_object n = function
   | Object (name, c, x) -> (
       let common =
-        "object \"" ^ name ^ "\" "
+        "object " ^ string_of_strlit name ^ " {"
         ^ indent_depth_to_indent (n + 1)
         ^ string_of_yul_code (n + 1) c
       in
@@ -169,3 +168,6 @@ and string_of_yul_object n = function
       | None -> common ^ indent_depth_to_indent n ^ "}")
 
 let string_of_yul obj = string_of_yul_object 0 obj
+
+let json_string_of_yul x =
+  String.map (fun x -> if x = '\n' then ' ' else x) (string_of_yul x)

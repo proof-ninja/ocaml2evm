@@ -1,7 +1,7 @@
 (executable
  (name main)
  (public_name ocamyul)
- (libraries compiler-libs.common digestif))
+ (libraries compiler-libs.common digestif yojson unix))
 
 (env
  (dev

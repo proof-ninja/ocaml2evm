@@ -114,8 +114,6 @@ module Compile_common = struct
 end
 
 module Compile = struct
-  open Compile_common
-
   let tool_name = "scamlc"
   let with_info = Compile_common.with_info ~native:false ~tool_name
   let interface ~source_file:_ ~output_prefix:_ = assert false
@@ -136,4 +134,4 @@ end
 
 let _ =
   Compile.implementation ~start_from:Parsing ~source_file:"test.ml"
-    ~output_prefix:""
+    ~output_prefix:"test"
