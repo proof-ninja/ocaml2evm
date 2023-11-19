@@ -31,6 +31,7 @@ let deploy_code =
 
 (* names of default functions *)
 let return_uint = "returnUint"
+let return_true = "returnTrue"
 let get_storage = "getStorage"
 let set_storage = "setStorage"
 let selector = "selector"
@@ -48,6 +49,13 @@ let return_uint_def =
         Exp (EVM (Mstore (Literal (Dec 0), ID arg)));
         Exp (EVM (Return (Literal (Dec 0), Literal (Hex 32))));
       ] )
+
+let return_true_def =
+  FunctionDef
+    ( return_true,
+      [],
+      None,
+      [ Exp (FunctionCall (return_uint, [ Literal (Dec 1) ])) ] )
 
 let get_storage_def =
   let return_arg = "ret" in
@@ -99,6 +107,7 @@ let default_revert_def =
 let default_function_defs =
   [
     return_uint_def;
+    return_true_def;
     get_storage_def;
     set_storage_def;
     selector_def;
@@ -139,12 +148,14 @@ let abi_output_of_typ s =
   else raise Not_implemented
 
 let keccak_256_for_abi func_sig =
-  Strlit
-    ("0x"
-    ^ String.sub
-        (KECCAK_256.to_hex
-           (KECCAK_256.get (KECCAK_256.feed_string KECCAK_256.empty func_sig)))
-        0 8)
+  Hex
+    (int_of_string
+       ("0x"
+       ^ String.sub
+           (KECCAK_256.to_hex
+              (KECCAK_256.get
+                 (KECCAK_256.feed_string KECCAK_256.empty func_sig)))
+           0 8))
 
 let params_in_case inputs =
   let decoder = function
@@ -302,7 +313,13 @@ let translate_external_func func_sigs = function
                           (FunctionCall
                              (return_func, [ FunctionCall (func_name, params) ]));
                       ] )
-                | None -> (None, [], [ Exp (FunctionCall (func_name, params)) ])
+                | None ->
+                    ( None,
+                      [],
+                      [
+                        Exp (FunctionCall (func_name, params));
+                        Exp (FunctionCall (return_true, []));
+                      ] )
               in
               ( FunctionDef
                   ( func_name,
@@ -315,7 +332,7 @@ let translate_external_func func_sigs = function
                       Exp (FunctionCall (set_storage, [ translate_exp e2 ]));
                     ]
                     @ return_exp ),
-                Some (Case (Str sig_string, case_result)) )
+                Some (Case (sig_string, case_result)) )
           | _ -> raise Not_implemented)
       | None -> raise Not_implemented)
   | _ -> raise Not_implemented
@@ -453,7 +470,13 @@ let backend _ Typedtree.{ structure; _ } =
           [ json_of_abis abis; bytecode; deployed_bytecode ]
         |> Yojson.Basic.pretty_to_string
       in
-      let result_chan = open_out (contract_name ^ ".json") in
+      let result_chan =
+        try
+          Unix.mkdir "./contracts" 0o775;
+          open_out ("./contracts/" ^ contract_name ^ ".json")
+        with Unix.Unix_error _ ->
+          open_out ("./contracts/" ^ contract_name ^ ".json")
+      in
       output_string result_chan result_json;
       close_out result_chan
   | _ -> raise Not_implemented

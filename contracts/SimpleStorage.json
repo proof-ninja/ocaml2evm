@@ -1,0 +1,35 @@
+{
+  "contractName": "SimpleStorage",
+  "abi": [
+    {
+      "name": "set",
+      "type": "function",
+      "inputs": [ { "name": "", "type": "uint256" } ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "name": "get",
+      "type": "function",
+      "inputs": [ { "name": "", "type": "uint256" } ],
+      "outputs": [ { "name": "", "type": "uint256" } ],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "name": "incr",
+      "type": "function",
+      "inputs": [ { "name": "", "type": "uint256" } ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "name": "twice",
+      "type": "function",
+      "inputs": [ { "name": "", "type": "uint256" } ],
+      "outputs": [ { "name": "", "type": "uint256" } ],
+      "stateMutability": "nonpayable"
+    }
+  ],
+  "bytecode": "335f5560db61000f5f3960db5ff3fe600560c9565b806360fe47b11460635780639507d39a14605257806321b13c4814604157633cf3bbf4146030575f80f35b603d60395f60d1565b60a0565b60b1565b604e604a5f60d1565b608e565b60b8565b605f605b5f60d1565b607d565b60b1565b6070606c5f60d1565b6074565b60b8565b607b9060c4565b565b50608460be565b608b8160c4565b90565b50609e6001609960be565b0160c4565b565b60ac60a860be565b60c4565b800190565b5f5260205ff35b600160b1565b60015490565b600155565b5f3560e01c90565b602002600401359056",
+  "deployedBytecode": "600560c9565b806360fe47b11460635780639507d39a14605257806321b13c4814604157633cf3bbf4146030575f80f35b603d60395f60d1565b60a0565b60b1565b604e604a5f60d1565b608e565b60b8565b605f605b5f60d1565b607d565b60b1565b6070606c5f60d1565b6074565b60b8565b607b9060c4565b565b50608460be565b608b8160c4565b90565b50609e6001609960be565b0160c4565b565b60ac60a860be565b60c4565b800190565b5f5260205ff35b600160b1565b60015490565b600155565b5f3560e01c90565b602002600401359056"
+}

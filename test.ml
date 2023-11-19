@@ -1,4 +1,4 @@
-module SimpleStrage : sig
+module SimpleStorage : sig
   type storage
 
   val set : int -> storage -> unit * storage
