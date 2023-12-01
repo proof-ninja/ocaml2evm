@@ -5,11 +5,20 @@ module SimpleStorage : sig
   val get : int -> storage -> int * storage
   val incr : int -> storage -> unit * storage
   val twice : int -> storage -> int * storage
+  val anormaltest : int -> storage -> int * storage
 end = struct
   type storage = int
 
   let set n s = ((), n)
   let get n s = (s, s)
   let incr n s = ((), s + 1)
-  let twice n s = (n + n, s)
+  let twice n s = (n * 2, s)
+
+  let anormaltest n s =
+    let m =
+      let l = s * 2 in
+      let o = n * 3 in
+      l + o
+    in
+    (m, m)
 end

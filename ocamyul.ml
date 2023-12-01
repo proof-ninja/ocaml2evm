@@ -124,13 +124,6 @@ let rec split_module_sig = function
       | Tsig_value y -> (types, y :: vals)
       | _ -> raise Not_implemented)
 
-let rec pairlist_to_listpair f = function
-  | [] -> ([], [])
-  | x :: xs ->
-      let x1, x2 = f x in
-      let xs1, xs2 = pairlist_to_listpair f xs in
-      (x1 :: xs1, x2 :: xs2)
-
 (* name of storage type *)
 (* for now, storage type must be int *)
 let storage_name = function
@@ -228,20 +221,49 @@ let abi_of_sig stor = function
           else raise Not_implemented
       | _ -> raise Not_allowed_function)
 
-let rec translate_exp = function
-  | Texp_ident (Pident s, _, _) -> ID (Ident.unique_name s)
-  | Texp_constant (Const_int n) -> Literal (Dec n)
-  | Texp_apply (f, args) -> (
-      match (f, args) with
-      | ( { exp_desc = Texp_ident (Pdot (_, s), _, _); _ },
-          [
-            (Nolabel, Some { exp_desc = e1; _ });
-            (Nolabel, Some { exp_desc = e2; _ });
-          ] ) ->
-          if s = "+" then EVM (Add (translate_exp e1, translate_exp e2))
-          else raise Not_implemented
-      | _ -> raise Not_implemented)
-  | _ -> raise Not_implemented
+let translate_public ast return_arg =
+  let open Anormal in
+  let aval_to_yul = function
+    | Var s -> ID s
+    | IntV n -> Literal (Dec n)
+    | BoolV b -> if b then Literal (Dec 1) else Literal (Dec 0)
+    | StrV s -> Literal (Str (Strlit s))
+    | UnitV -> assert false
+  in
+  let acexp_to_yul = function
+    | Val v -> aval_to_yul v
+    | Bop (v1, b, v2) ->
+        let v1 = aval_to_yul v1 in
+        let v2 = aval_to_yul v2 in
+        EVM
+          (match b with
+          | Add -> Add (v1, v2)
+          | Sub -> Sub (v1, v2)
+          | Mul -> Mul (v1, v2)
+          | Div -> Div (v1, v2))
+    | App (Var s, v) -> FunctionCall (s, [ aval_to_yul v ])
+    | _ -> raise Not_implemented
+  in
+  let return_exp v1 v2 acc =
+    let acc = Exp (FunctionCall (set_storage, [ aval_to_yul v2 ])) :: acc in
+    match return_arg with
+    | Some return_arg -> Assign ((return_arg, []), aval_to_yul v1) :: acc
+    | None -> acc
+  in
+  let rec translate_body_aux e acc =
+    match e with
+    | Cexp e' -> (
+        match (e', acc) with
+        | Tuple [ v1; v2 ], [] -> return_exp v1 v2 []
+        | _ -> assert false)
+    | Letin (x, e1, e2) -> (
+        let acc = Let ((x, []), acexp_to_yul e1) :: acc in
+        match e2 with
+        | Cexp (Tuple [ v1; v2 ]) -> return_exp v1 v2 acc
+        | Letin _ -> translate_body_aux e2 acc
+        | _ -> assert false)
+  in
+  List.rev (translate_body_aux (normalize ast) [])
 
 (* splitting module structure to types and external vals and internal vas *)
 let rec split_module_str = function
@@ -279,16 +301,7 @@ let translate_external_func func_sigs = function
                                 {
                                   c_lhs =
                                     { pat_desc = Tpat_var (storage, _); _ };
-                                  c_rhs =
-                                    {
-                                      exp_desc =
-                                        Texp_tuple
-                                          [
-                                            { exp_desc = e1; _ };
-                                            { exp_desc = e2; _ };
-                                          ];
-                                      _;
-                                    };
+                                  c_rhs = { exp_desc = e; _ };
                                   _;
                                 }
                                 :: [];
@@ -302,12 +315,11 @@ let translate_external_func func_sigs = function
                 _;
               } ->
               let func_name = Ident.unique_name func_name in
-              let return_arg = "ret" in
-              let return_arg, return_exp, case_result =
+              let return_arg = "$ret" in
+              let return_arg, case_result =
                 match returner with
                 | Some return_func ->
                     ( Some return_arg,
-                      [ Assign ((return_arg, []), translate_exp e1) ],
                       [
                         Exp
                           (FunctionCall
@@ -315,7 +327,6 @@ let translate_external_func func_sigs = function
                       ] )
                 | None ->
                     ( None,
-                      [],
                       [
                         Exp (FunctionCall (func_name, params));
                         Exp (FunctionCall (return_true, []));
@@ -325,13 +336,10 @@ let translate_external_func func_sigs = function
                   ( func_name,
                     [ Ident.unique_name arg ],
                     return_arg,
-                    [
-                      Let
-                        ( (Ident.unique_name storage, []),
-                          FunctionCall (get_storage, []) );
-                      Exp (FunctionCall (set_storage, [ translate_exp e2 ]));
-                    ]
-                    @ return_exp ),
+                    Let
+                      ( (Ident.unique_name storage, []),
+                        FunctionCall (get_storage, []) )
+                    :: translate_public e return_arg ),
                 Some (Case (sig_string, case_result)) )
           | _ -> raise Not_implemented)
       | None -> raise Not_implemented)
@@ -376,12 +384,12 @@ let backend _ Typedtree.{ structure; _ } =
       let stor, sigs = split_module_sig sigs in
       let stor = storage_name stor in
       (* getting ABI and function signatures *)
-      let abis, func_sigs = pairlist_to_listpair (abi_of_sig stor) sigs in
+      let abis, func_sigs = List.split (List.map (abi_of_sig stor) sigs) in
       (* getting val expression (types are not yet implemented) *)
       let _, exps = split_module_str items in
       (* getting function declarations and dispatcher cases *)
       let funcs, cases =
-        pairlist_to_listpair (translate_external_func func_sigs) exps
+        List.split (List.map (translate_external_func func_sigs) exps)
       in
       (* code fragment: dispatcher *)
       let dispatcher =
@@ -391,6 +399,7 @@ let backend _ Typedtree.{ structure; _ } =
       (* generating whole Yul code *)
       let yul_code =
         json_string_of_yul
+          (* string_of_yul *)
           (Object
              ( Strlit contract_name,
                deploy_code,
@@ -400,6 +409,7 @@ let backend _ Typedtree.{ structure; _ } =
                       Code ((dispatcher :: funcs) @ default_function_defs),
                       None )) ))
       in
+      (* print_endline yul_code *)
       (* json provided for solc *)
       let yul_json : Yojson.Basic.t =
         `Assoc

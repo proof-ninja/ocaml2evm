@@ -47,5 +47,16 @@ describe('SimpleStorage', async () => {
   it('twice arg', async () => {
     const v = await contract.methods.twice(300).call();
     assert.equal(600, v);
+  });
+
+  it('anormal test', async () => {
+    const v = await contract.methods.anormaltest(7).call();
+    assert.equal(221, v);
+  });
+
+  it('anormal test2', async () => {
+    await contract.methods.anormaltest(7).send({ from: from });
+    const v = await contract.methods.get(100).call();
+    assert.equal(221, v);
   })
 });
