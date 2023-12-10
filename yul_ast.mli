@@ -2,7 +2,7 @@ type block = statement list
 
 and statement =
   | Block of block
-  | FunctionDef of id * id list * id option * block
+  | FunctionDef of id * id list * id list * block
   | Let of (idlist * exp)
   | Assign of (idlist * exp)
   | If of exp * block

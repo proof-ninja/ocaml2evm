@@ -133,5 +133,5 @@ module Compile = struct
 end
 
 let _ =
-  Compile.implementation ~start_from:Parsing ~source_file:"test.ml"
+  Compile.implementation ~start_from:Parsing ~source_file:"simple_storage.ml"
     ~output_prefix:"test"

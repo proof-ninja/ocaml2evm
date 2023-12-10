@@ -27,20 +27,20 @@ describe('SimpleStorage', async () => {
   });
 
   it('getting value', async () => {
-    const v = await contract.methods.get(200).call();
+    const v = await contract.methods.get().call();
     console.log(v);
     assert.equal(100, v);
   });
 
   it('setting value', async () => {
     await contract.methods.set(200).send({ from: from });
-    const v = await contract.methods.get(100).call();
+    const v = await contract.methods.get().call();
     assert.equal(200, v);
   });
 
   it('increment value', async () => {
-    await contract.methods.incr(100).send({ from: from });
-    const v = await contract.methods.get(200).call();
+    await contract.methods.incr().send({ from: from });
+    const v = await contract.methods.get().call();
     assert.equal(101, v);
   });
 
@@ -56,7 +56,7 @@ describe('SimpleStorage', async () => {
 
   it('anormal test2', async () => {
     await contract.methods.anormaltest(7).send({ from: from });
-    const v = await contract.methods.get(100).call();
+    const v = await contract.methods.get().call();
     assert.equal(221, v);
   })
 });

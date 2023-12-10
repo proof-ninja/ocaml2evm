@@ -2,7 +2,7 @@ type block = statement list
 
 and statement =
   | Block of block
-  | FunctionDef of id * id list * id option * block
+  | FunctionDef of id * id list * id list * block
   | Let of (idlist * exp)
   | Assign of (idlist * exp)
   | If of exp * block
@@ -71,11 +71,15 @@ let rec string_of_yul_block n b =
 
 and string_of_yul_statement n = function
   | Block b -> string_of_yul_block n b
-  | FunctionDef (func_name, args, ret, body) ->
-      let ret = match ret with Some x -> "-> " ^ x ^ " " | None -> "" in
+  | FunctionDef (func_name, args, rets, body) ->
+      let rets =
+        match rets with
+        | [] -> ""
+        | _ -> "-> " ^ string_of_args (fun x -> x) rets ^ " "
+      in
       indent_depth_to_indent n ^ "function " ^ func_name ^ " ("
       ^ string_of_args (fun x -> x) args
-      ^ ") " ^ ret ^ string_of_yul_block n body
+      ^ ") " ^ rets ^ string_of_yul_block n body
   | Let (vars, e) ->
       "let " ^ string_of_idlist vars (fun x -> x) ^ " := " ^ string_of_yul_exp e
   | Assign (vars, e) ->

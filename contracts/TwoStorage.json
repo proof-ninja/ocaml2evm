@@ -1,0 +1,39 @@
+{
+  "contractName": "TwoStorage",
+  "abi": [
+    {
+      "name": "set",
+      "type": "function",
+      "inputs": [
+        { "name": "", "type": "uint256" }, { "name": "", "type": "uint256" }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "name": "get",
+      "type": "function",
+      "inputs": [],
+      "outputs": [
+        { "name": "", "type": "uint256" }, { "name": "", "type": "uint256" }
+      ],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "name": "swap",
+      "type": "function",
+      "inputs": [],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "name": "total",
+      "type": "function",
+      "inputs": [],
+      "outputs": [ { "name": "", "type": "uint256" } ],
+      "stateMutability": "nonpayable"
+    }
+  ],
+  "bytecode": "335f5560e961000f5f3960e95ff3fe600560d7565b80631ab06ee514604f5780636d4ce63c1460445780638119c06514603a57632ddbd13a146030575f80f35b60366096565b60bd565b60406088565b60ce565b604a6072565b9060c4565b60646059600160df565b60605f60df565b6068565b60ce565b9060709160b5565b565b607860ab565b608482939291809460b5565b9190565b6094609060ab565b60b5565b565b60a8609e60ab565b80829392019260b5565b90565b6001549060025490565b600155600255565b5f5260205ff35b5f5260205260405ff35b60015f5260205ff35b5f3560e01c90565b602002600401359056",
+  "deployedBytecode": "600560d7565b80631ab06ee514604f5780636d4ce63c1460445780638119c06514603a57632ddbd13a146030575f80f35b60366096565b60bd565b60406088565b60ce565b604a6072565b9060c4565b60646059600160df565b60605f60df565b6068565b60ce565b9060709160b5565b565b607860ab565b608482939291809460b5565b9190565b6094609060ab565b60b5565b565b60a8609e60ab565b80829392019260b5565b90565b6001549060025490565b600155600255565b5f5260205ff35b5f5260205260405ff35b60015f5260205ff35b5f3560e01c90565b602002600401359056"
+}

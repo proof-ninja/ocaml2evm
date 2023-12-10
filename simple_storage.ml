@@ -2,16 +2,16 @@ module SimpleStorage : sig
   type storage
 
   val set : int -> storage -> unit * storage
-  val get : int -> storage -> int * storage
-  val incr : int -> storage -> unit * storage
+  val get : unit -> storage -> int * storage
+  val incr : unit -> storage -> unit * storage
   val twice : int -> storage -> int * storage
   val anormaltest : int -> storage -> int * storage
 end = struct
   type storage = int
 
-  let set n s = ((), n)
-  let get n s = (s, s)
-  let incr n s = ((), s + 1)
+  let set n _ = ((), n)
+  let get _ s = (s, s)
+  let incr _ s = ((), s + 1)
   let twice n s = (n * 2, s)
 
   let anormaltest n s =
