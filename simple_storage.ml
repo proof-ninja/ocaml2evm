@@ -10,8 +10,8 @@ end = struct
   type storage = int
 
   let set n _ = ((), n)
-  let get _ s = (s, s)
-  let incr _ s = ((), s + 1)
+  let get () s = (s, s)
+  let incr () s = ((), s + 1)
   let twice n s = (n * 2, s)
 
   let anormaltest n s =

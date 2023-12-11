@@ -28,7 +28,6 @@ describe('SimpleStorage', async () => {
 
   it('getting value', async () => {
     const v = await contract.methods.get().call();
-    console.log(v);
     assert.equal(100, v);
   });
 

@@ -35,8 +35,6 @@ let fresh_var =
   in
   body
 
-let is_aval = function Val _ -> true | _ -> false
-
 let const_to_aval = function
   | Const_int n -> IntV n
   | Const_string (s, _, _) -> StrV s
@@ -49,7 +47,7 @@ let get_bop s =
   else if s = "/" then Div
   else assert false
 
-let rec normalize_aux { exp_desc = e; exp_type = t; _ } k =
+let rec normalize_aux { exp_desc = e; exp_type = _; _ } k =
   match e with
   | Texp_ident (Pident s, _, _) -> Fexp (Val (Var (Ident.unique_name s))) |> k
   | Texp_constant x -> Fexp (Val (const_to_aval x)) |> k
@@ -169,38 +167,41 @@ let rec remove_tuple e rename =
           | Tuple _ -> assert false
           | Fexp e1'' -> Letin ([ x ], e1'', e2')))
 
-let normalize e = normalize_aux e (fun x -> ACexp x)
-let normalize2 e = remove_tuple (normalize e)
-let print_bop = function Add -> "+" | Sub -> "-" | Mul -> "*" | Div -> "/"
+let normalize_with_tuple e = normalize_aux e (fun x -> ACexp x)
+let normalize e = remove_tuple (normalize_with_tuple e)
+let string_of_bop = function Add -> "+" | Sub -> "-" | Mul -> "*" | Div -> "/"
 
-let print_aval = function
+let string_of_aval = function
   | Var s -> s
   | IntV n -> string_of_int n
   | BoolV b -> string_of_bool b
   | StrV s -> s
   | UnitV -> "()"
 
-let print_fexp = function
-  | Val v -> print_aval v
-  | Bop (v1, op, v2) -> print_aval v1 ^ " " ^ print_bop op ^ " " ^ print_aval v2
+let string_of_fexp = function
+  | Val v -> string_of_aval v
+  | Bop (v1, op, v2) ->
+      string_of_aval v1 ^ " " ^ string_of_bop op ^ " " ^ string_of_aval v2
   | App (f, xs) ->
-      print_aval f
-      ^ List.fold_left (fun acc x -> acc ^ " " ^ print_aval x) "" xs
+      string_of_aval f
+      ^ List.fold_left (fun acc x -> acc ^ " " ^ string_of_aval x) "" xs
 
-let print_acexp = function
-  | Fexp e -> print_fexp e
+let string_of_acexp = function
+  | Fexp e -> string_of_fexp e
   | Tuple vs ->
-      "(" ^ List.fold_left (fun acc x -> acc ^ ", " ^ print_aval x) "" vs ^ ")"
+      "("
+      ^ List.fold_left (fun acc x -> acc ^ ", " ^ string_of_aval x) "" vs
+      ^ ")"
 
-let rec print_aexp = function
-  | ACexp e -> print_acexp e
-  | ALetin ((x, _), e1, e2) ->
-      "let " ^ x ^ " = " ^ print_acexp e1 ^ " in " ^ print_aexp e2
+(* let rec string_of_aexp = function
+   | ACexp e -> string_of_acexp e
+   | ALetin ((x, _), e1, e2) ->
+       "let " ^ x ^ " = " ^ string_of_acexp e1 ^ " in " ^ string_of_aexp e2 *)
 
-let rec print_pexp e =
+let rec string_of_pexp e =
   match e with
-  | Cexp e -> print_acexp e
+  | Cexp e -> string_of_acexp e
   | Letin (vars, e1, e2) ->
       "let"
       ^ List.fold_left (fun acc x -> acc ^ ", " ^ x) "" vars
-      ^ " = " ^ print_fexp e1 ^ " in " ^ print_pexp e2
+      ^ " = " ^ string_of_fexp e1 ^ " in " ^ string_of_pexp e2

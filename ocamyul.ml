@@ -1,7 +1,8 @@
 (* to use results of parsing *)
 open Typedtree
-open Asttypes
-open Path
+
+(* open Asttypes *)
+(* open Path *)
 
 (* for keccak256 *)
 open Digestif
@@ -337,7 +338,7 @@ let translate_public ast return_args rename =
     | App (Var s, vals) -> FunctionCall (s, List.map aval_to_yul vals)
     | _ -> assert false
   in
-  let acexp_to_yul = function Fexp e -> fexp_to_yul e | _ -> assert false in
+  (* let acexp_to_yul = function Fexp e -> fexp_to_yul e | _ -> assert false in *)
   let return_exp vals acc =
     let vals = List.filter (fun x -> not (x = UnitV)) vals in
     (* splitting return values and storage values *)
@@ -370,22 +371,9 @@ let translate_public ast return_args rename =
         | Cexp (Tuple vals) -> return_exp vals acc
         | Letin _ -> translate_body_aux e2 acc
         | _ -> assert false)
-    (* match e with
-       | ACexp e' -> (
-           match (e', acc) with
-           | Tuple (v :: vs), [] -> return_exp v vs []
-           | _ -> assert false)
-       | ALetin ((x, _), e1, e2) -> (
-           let acc = Let ((x, []), acexp_to_yul e1) :: acc in
-           match e2 with
-           | ACexp (Tuple (v :: vs)) -> return_exp v vs acc
-           | ALetin _ -> translate_body_aux e2 acc
-           | _ -> assert false) *)
   in
   (* List.rev (translate_body_aux (normalize ast) []) *)
-  print_endline (print_aexp (normalize ast));
-  print_endline (print_pexp (normalize2 ast []));
-  List.rev (translate_body_aux (normalize2 ast rename) [])
+  List.rev (translate_body_aux (normalize ast rename) [])
 
 (* flatten arguments tuple pattern *)
 let flatten_tuple_pat p =
@@ -407,7 +395,10 @@ let flatten_tuple_pat p =
   in
   let rec flatten_tuple_pat_aux (p, t) =
     match (p, get_desc t) with
-    | Tpat_any, _ -> ([], [])
+    | Tpat_any, _ -> ([], [ Anormal.fresh_var () ])
+    | ( Tpat_construct (_, { Types.cstr_name = "()"; _ }, [], _),
+        Tconstr (_, [], _) ) ->
+        ([], [])
     | Tpat_var (s, _), t ->
         let n = count_tuple_elem t in
         if n > 1 then
@@ -455,7 +446,6 @@ let translate_external_func func_sigs = function
               {
                 cases =
                   {
-                    (* c_lhs = { pat_desc = Tpat_var (arg, _); _ }; *)
                     c_lhs = arg_pat;
                     c_rhs =
                       {
@@ -463,14 +453,7 @@ let translate_external_func func_sigs = function
                           Texp_function
                             {
                               cases =
-                                {
-                                  c_lhs =
-                                    (* { pat_desc = Tpat_var (storage, _); _ }; *)
-                                    stor_pat;
-                                  c_rhs = body;
-                                  _;
-                                }
-                                :: [];
+                                { c_lhs = stor_pat; c_rhs = body; _ } :: [];
                               _;
                             };
                         _;
@@ -497,15 +480,6 @@ let translate_external_func func_sigs = function
                 in
                 List.rev (gen_return_vals return_num)
               in
-              let get_storage_exp =
-                if storage_args = [] then []
-                else
-                  [
-                    Let
-                      ( (List.hd storage_args, List.tl storage_args),
-                        FunctionCall (get_storage, []) );
-                  ]
-              in
               let case_result =
                 match returner with
                 | Some return_func ->
@@ -525,15 +499,13 @@ let translate_external_func func_sigs = function
               in
               ( FunctionDef
                   ( func_name,
-                    (* [ Ident.unique_name arg ], *)
                     input_args,
                     return_args,
-                    (* Let
-                       ( (Ident.unique_name storage, []),
-                         FunctionCall (get_storage, []) ) *)
-                    get_storage_exp
-                    @ translate_public body return_args
-                        (input_renaming @ storage_renaming) ),
+                    Let
+                      ( (List.hd storage_args, List.tl storage_args),
+                        FunctionCall (get_storage, []) )
+                    :: translate_public body return_args
+                         (input_renaming @ storage_renaming) ),
                 Some (Case (sig_string, case_result)) )
           | _ -> raise Not_implemented)
       | None -> raise Not_implemented)
@@ -617,7 +589,7 @@ let backend _ Typedtree.{ structure; _ } =
                    None )) )
       in
       (* print debugging *)
-      print_endline (string_of_yul yul_code);
+      (* print_endline (string_of_yul yul_code) *)
       (* json provided for solc *)
       let yul_code = json_string_of_yul yul_code in
       let yul_json : Yojson.Basic.t =

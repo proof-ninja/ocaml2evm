@@ -134,4 +134,6 @@ end
 
 let _ =
   Compile.implementation ~start_from:Parsing ~source_file:"simple_storage.ml"
-    ~output_prefix:"test"
+    ~output_prefix:"simple_storage";
+  Compile.implementation ~start_from:Parsing ~source_file:"two_storage.ml"
+    ~output_prefix:"two_storage"
