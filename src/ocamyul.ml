@@ -511,7 +511,7 @@ let translate_external_func func_sigs = function
       | None -> raise Not_implemented)
   | _ -> assert false
 
-let backend _ Typedtree.{ structure; _ } =
+let backend source_file Typedtree.{ structure; _ } =
   match structure with
   | {
    str_items =
@@ -664,12 +664,17 @@ let backend _ Typedtree.{ structure; _ } =
           [ json_of_abis abis; bytecode; deployed_bytecode ]
         |> Yojson.Basic.pretty_to_string
       in
+      let result_path =
+        "./" :: String.split_on_char '/' source_file
+        |> List.rev |> List.tl |> List.tl |> List.rev |> String.concat "/"
+        |> fun path -> path ^ "/contracts"
+      in
+      let contract_path = result_path ^ "/" ^ contract_name ^ ".json" in
       let result_chan =
         try
-          Unix.mkdir "./contracts" 0o775;
-          open_out ("./contracts/" ^ contract_name ^ ".json")
-        with Unix.Unix_error _ ->
-          open_out ("./contracts/" ^ contract_name ^ ".json")
+          Unix.mkdir result_path 0o775;
+          open_out contract_path
+        with Unix.Unix_error _ -> open_out contract_path
       in
       output_string result_chan result_json;
       close_out result_chan

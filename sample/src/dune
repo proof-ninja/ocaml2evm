@@ -1,0 +1,7 @@
+(library
+ (name test_contract))
+
+(env
+ (dev
+  (flags
+   (:standard -warn-error -a))))

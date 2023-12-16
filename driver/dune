@@ -1,0 +1,9 @@
+(executable
+ (name main)
+ (public_name ocamyulc)
+ (libraries ocamyul.compiler compiler-libs.common digestif yojson unix))
+
+(env
+ (dev
+  (flags
+   (:standard -warn-error -a))))

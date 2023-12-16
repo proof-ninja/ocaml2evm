@@ -114,7 +114,9 @@ module Compile_common = struct
 end
 
 module Compile = struct
-  let tool_name = "scamlc"
+  open Compile_common
+
+  let tool_name = "ocamyulc"
   let with_info = Compile_common.with_info ~native:false ~tool_name
   let interface ~source_file:_ ~output_prefix:_ = assert false
 
@@ -123,7 +125,7 @@ module Compile = struct
          SCamlc.SCamlComp.compile info.source_file info.output_prefix
            info.module_name typed
        in *)
-    let backend = Ocamyul.backend in
+    let backend info typed = OCamYulc.Ocamyul.backend info.source_file typed in
     with_info ~source_file ~output_prefix ~dump_ext:"cmo" @@ fun info ->
     match (start_from : Clflags.Compiler_pass.t) with
     | Parsing -> Compile_common.implementation info ~backend
@@ -133,7 +135,20 @@ module Compile = struct
 end
 
 let _ =
-  Compile.implementation ~start_from:Parsing ~source_file:"simple_storage.ml"
-    ~output_prefix:"simple_storage";
-  Compile.implementation ~start_from:Parsing ~source_file:"two_storage.ml"
-    ~output_prefix:"two_storage"
+  let source = Sys.argv.(1) in
+  let prefix =
+    String.split_on_char '.' source
+    |> List.rev |> List.tl |> List.rev |> String.concat "."
+  in
+  Compile.implementation ~start_from:Parsing ~source_file:source
+    ~output_prefix:prefix
+(* Compile.implementation ~start_from:Parsing ~source_file:"simple_storage.ml"
+     ~output_prefix:"simple_storage";
+   Compile.implementation ~start_from:Parsing ~source_file:"two_storage.ml"
+     ~output_prefix:"two_storage" *)
+
+(* let _ =
+   print_endline "Sys.argv test";
+   print_endline Sys.argv.(0);
+   print_endline Sys.argv.(1);
+   print_endline Sys.argv.(2) *)
