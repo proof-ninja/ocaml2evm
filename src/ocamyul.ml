@@ -1,12 +1,6 @@
 (* to use results of parsing *)
 open Typedtree
 
-(* open Asttypes *)
-(* open Path *)
-
-(* for keccak256 *)
-open Digestif
-
 (* Yul and ABI *)
 open Yul_ast
 open Abi_json
@@ -61,17 +55,6 @@ let return_uint_def n =
   in
   FunctionDef (gen_return_uint_name n, args, [], assigns)
 
-(* let return_uint_def =
-   let arg = "v" in
-   FunctionDef
-     ( return_uint,
-       [ arg ],
-       [],
-       [
-         Exp (EVM (Mstore (Literal (Dec 0), ID arg)));
-         Exp (EVM (Return (Literal (Dec 0), Literal (Hex 32))));
-       ] ) *)
-
 let return_true_def =
   FunctionDef
     ( return_true,
@@ -114,19 +97,6 @@ let set_storage_def n =
   let assigns = gen_store_vars num_args in
   FunctionDef (set_storage, args, [], assigns)
 
-(* let get_storage_def =
-     let return_arg = "ret" in
-     FunctionDef
-       ( get_storage,
-         [],
-         [ return_arg ],
-         [ Assign ((return_arg, []), EVM (Sload (Literal (Dec 1)))) ] )
-
-   let set_storage_def =
-     let arg = "v" in
-     FunctionDef
-       (set_storage, [ arg ], [], [ Exp (EVM (Sstore (Literal (Dec 1), ID arg))) ]) *)
-
 let selector_def =
   let return_arg = "ret" in
   FunctionDef
@@ -158,15 +128,7 @@ let decode_as_uint_def =
 let default_revert_def =
   Default [ Exp (EVM (Revert (Literal (Dec 0), Literal (Dec 0)))) ]
 
-let default_function_defs =
-  [
-    (* return_uint_def; *)
-    (* return_true_def; *)
-    (* get_storage_def; *)
-    (* set_storage_def; *)
-    selector_def;
-    decode_as_uint_def;
-  ]
+let default_function_defs = [ selector_def; decode_as_uint_def ]
 
 (* splitting signatures to the types part and vals part *)
 let rec split_module_sig = function
@@ -231,6 +193,7 @@ let abi_output_of_typ typ =
   | _ -> raise Not_implemented
 
 let keccak_256_for_abi func_sig =
+  let open Digestif in
   Hex
     (int_of_string
        ("0x"
@@ -253,16 +216,10 @@ let params_in_case inputs =
   aux 0 inputs
 
 let returner_in_case = function
-  | [] -> (None, return_true_def)
+  | [] -> (return_true, return_true_def)
   | x ->
       let n = List.length x in
-      (Some (gen_return_uint_name n), return_uint_def n)
-
-(* | [ { output_type = x; _ } ] -> (
-    match x with
-    | Uint256 -> Some return_uint
-    | Address -> raise Not_implemented) *)
-(* | _ -> raise Not_implemented *)
+      (gen_return_uint_name n, return_uint_def n)
 
 (* accesible functions must be the form "params -> storage -> (return val, storage)" *)
 (* generating (ABI, (func_name, keccak256 of a function signature)) from a signature  *)
@@ -315,7 +272,20 @@ let abi_of_sig stor = function
       | _ -> raise Not_allowed_function)
 
 (* translate public (belonging to sig...end) function *)
-let translate_public ast return_args rename =
+let translate_public func_name e =
+  let rec expand_function e =
+    match e with
+    | {
+     exp_desc =
+       Texp_function { cases = { c_lhs = arg_pat; c_rhs = body; _ } :: []; _ };
+     _;
+    } ->
+        let first_rename, first_args = Utils.flatten_tuple_pat arg_pat in
+        let rename, args, body = expand_function body in
+        (first_rename @ rename, first_args @ args, body)
+    | _ -> ([], [], e)
+  in
+  let rename, args, body = expand_function e in
   let open Anormal in
   let aval_to_yul = function
     | Var s -> ID s
@@ -324,9 +294,12 @@ let translate_public ast return_args rename =
     | StrV s -> Literal (Str (Strlit s))
     | UnitV -> assert false
   in
-  let fexp_to_yul = function
-    | Val v -> aval_to_yul v
-    | Bop (v1, b, v2) ->
+  let translate_aval_args v =
+    match v with UnitV -> None | _ -> Some (aval_to_yul v)
+  in
+  let letexp_to_yul = function
+    | LVal v -> aval_to_yul v
+    | LBop (v1, b, v2) ->
         let v1 = aval_to_yul v1 in
         let v2 = aval_to_yul v2 in
         EVM
@@ -335,88 +308,89 @@ let translate_public ast return_args rename =
           | Sub -> Sub (v1, v2)
           | Mul -> Mul (v1, v2)
           | Div -> Div (v1, v2))
-    | App (Var s, vals) -> FunctionCall (s, List.map aval_to_yul vals)
+    | LApp (Var s, vals) ->
+        FunctionCall
+          ( s,
+            List.fold_left
+              (fun acc x ->
+                match translate_aval_args x with
+                | Some v -> v :: acc
+                | None -> acc)
+              [] vals
+            |> List.rev )
     | _ -> assert false
   in
-  (* let acexp_to_yul = function Fexp e -> fexp_to_yul e | _ -> assert false in *)
   let return_exp vals acc =
     let vals = List.filter (fun x -> not (x = UnitV)) vals in
-    (* splitting return values and storage values *)
-    let rec split_tuple n rets stors =
-      if n = 0 then (List.rev rets, stors)
-      else split_tuple (n - 1) (List.hd stors :: rets) (List.tl stors)
+    let rec assign_rets vals acc_exp acc_rets =
+      match vals with
+      | [] -> (acc_exp, acc_rets)
+      | v :: vs ->
+          let ret = Utils.fresh_var () in
+          assign_rets vs
+            (Assign ((ret, []), aval_to_yul v) :: acc_exp)
+            (ret :: acc_rets)
     in
-    let rets, stors = split_tuple (List.length return_args) [] vals in
-    let acc =
-      Exp (FunctionCall (set_storage, List.map aval_to_yul stors)) :: acc
-    in
-    let rec assign_rets rets_and_vals acc =
-      match rets_and_vals with
-      | [], [] -> acc
-      | x :: xs, v :: vs ->
-          assign_rets (xs, vs) (Assign ((x, []), aval_to_yul v) :: acc)
-      | _ -> assert false
-    in
-    assign_rets (return_args, rets) [] @ acc
+    assign_rets vals acc []
   in
   let rec translate_body_aux e acc =
     match e with
-    | Cexp e' -> (
-        match (e', acc) with
-        | Tuple vals, [] -> return_exp vals []
-        | _ -> assert false)
+    | Rexp e' -> (
+        match e' with
+        | RTuple vals -> return_exp vals acc
+        | RVal v -> return_exp [ v ] acc)
     | Letin (vars, e1, e2) -> (
-        let acc = Let ((List.hd vars, List.tl vars), fexp_to_yul e1) :: acc in
+        let acc = Let ((List.hd vars, List.tl vars), letexp_to_yul e1) :: acc in
         match e2 with
-        | Cexp (Tuple vals) -> return_exp vals acc
+        | Rexp (RTuple vals) -> return_exp vals acc
         | Letin _ -> translate_body_aux e2 acc
         | _ -> assert false)
   in
-  (* List.rev (translate_body_aux (normalize ast) []) *)
-  List.rev (translate_body_aux (normalize ast rename) [])
+  let statements, return_vars = translate_body_aux (normalize body rename) [] in
+  let statements = List.rev statements in
+  let return_vars = List.rev return_vars in
+  FunctionDef (func_name, args, return_vars, statements)
 
-(* flatten arguments tuple pattern *)
-let flatten_tuple_pat p =
-  let open Types in
-  let rec count_tuple_elem = function
-    | Tconstr _ -> 1
-    | Ttuple types ->
-        List.fold_left
-          (fun acc x -> count_tuple_elem x + acc)
-          0 (List.map get_desc types)
-    | Tvar _ -> 1
-    | _ -> assert false
-  in
-  let rec gen_renaming_ids n =
-    if n = 0 then []
-    else
-      let x = Anormal.fresh_var () in
-      x :: gen_renaming_ids (n - 1)
-  in
-  let rec flatten_tuple_pat_aux (p, t) =
-    match (p, get_desc t) with
-    | Tpat_any, _ -> ([], [ Anormal.fresh_var () ])
-    | ( Tpat_construct (_, { Types.cstr_name = "()"; _ }, [], _),
-        Tconstr (_, [], _) ) ->
-        ([], [])
-    | Tpat_var (s, _), t ->
-        let n = count_tuple_elem t in
-        if n > 1 then
-          let renamed = gen_renaming_ids n in
-          ([ (Ident.unique_name s, renamed) ], renamed)
-        else ([], [ Ident.unique_name s ])
-    | Tpat_tuple pat_list, Ttuple type_list ->
-        List.fold_left
-          (fun acc (x, y) ->
-            let renaming, generated_ids =
-              flatten_tuple_pat_aux (x.pat_desc, y)
+let translate_external_func func_sigs storage_num = function
+  | { vb_pat = { pat_desc = Tpat_var (func_name, _); _ }; vb_expr = e; _ } :: []
+    -> (
+      match
+        List.find_opt
+          (fun (x, _, _, _, _) -> x = Ident.name func_name)
+          func_sigs
+      with
+      | Some (_, sig_string, params, returner, return_num) ->
+          let func_name = Ident.unique_name func_name in
+          let func_def = translate_public func_name e in
+          let set_stor_vals, return_vals, return_stor_vals =
+            let rec gen_return_vals n =
+              if n = 0 then [] else Utils.fresh_var () :: gen_return_vals (n - 1)
             in
-            (fst acc @ renaming, snd acc @ generated_ids))
-          ([], [])
-          (List.combine pat_list type_list)
-    | _ -> assert false
-  in
-  flatten_tuple_pat_aux (p.pat_desc, p.pat_type)
+            ( List.rev (gen_return_vals storage_num),
+              List.rev (gen_return_vals return_num),
+              List.rev (gen_return_vals storage_num) )
+          in
+          let result_vals = return_vals @ return_stor_vals in
+          let case_result =
+            [
+              Let
+                ( (List.hd set_stor_vals, List.tl set_stor_vals),
+                  FunctionCall (get_storage, []) );
+              Let
+                ( (List.hd result_vals, List.tl result_vals),
+                  FunctionCall
+                    (func_name, params @ List.map (fun x -> ID x) set_stor_vals)
+                );
+              Exp
+                (FunctionCall
+                   (set_storage, List.map (fun x -> ID x) return_stor_vals));
+              Exp
+                (FunctionCall (returner, List.map (fun x -> ID x) return_vals));
+            ]
+          in
+          (func_def, Some (Case (sig_string, case_result)))
+      | _ -> raise Not_implemented)
+  | _ -> assert false
 
 (* splitting module structure to types and external vals and internal vals *)
 let rec split_module_str = function
@@ -427,89 +401,6 @@ let rec split_module_str = function
       | Tstr_type (_, y) -> (y @ types, exps)
       | Tstr_value (_, y) -> (types, y :: exps)
       | _ -> raise Not_implemented)
-
-let translate_external_func func_sigs = function
-  | {
-      vb_pat = { pat_desc = Tpat_var (func_name, _); _ };
-      vb_expr = { exp_desc = e; _ };
-      _;
-    }
-    :: [] -> (
-      match
-        List.find_opt
-          (fun (x, _, _, _, _) -> x = Ident.name func_name)
-          func_sigs
-      with
-      | Some (_, sig_string, params, returner, return_num) -> (
-          match e with
-          | Texp_function
-              {
-                cases =
-                  {
-                    c_lhs = arg_pat;
-                    c_rhs =
-                      {
-                        exp_desc =
-                          Texp_function
-                            {
-                              cases =
-                                { c_lhs = stor_pat; c_rhs = body; _ } :: [];
-                              _;
-                            };
-                        _;
-                      };
-                    _;
-                  }
-                  :: [];
-                _;
-              } ->
-              let func_name = Ident.unique_name func_name in
-              let input_renaming, input_args = flatten_tuple_pat arg_pat in
-              let storage_renaming, storage_args = flatten_tuple_pat stor_pat in
-              let return_args =
-                let rec gen_return_args n =
-                  if n = 0 then []
-                  else ("$ret_" ^ string_of_int n) :: gen_return_args (n - 1)
-                in
-                List.rev (gen_return_args return_num)
-              in
-              let return_vals =
-                let rec gen_return_vals n =
-                  if n = 0 then []
-                  else Anormal.fresh_var () :: gen_return_vals (n - 1)
-                in
-                List.rev (gen_return_vals return_num)
-              in
-              let case_result =
-                match returner with
-                | Some return_func ->
-                    [
-                      Let
-                        ( (List.hd return_vals, List.tl return_vals),
-                          FunctionCall (func_name, params) );
-                      Exp
-                        (FunctionCall
-                           (return_func, List.map (fun x -> ID x) return_vals));
-                    ]
-                | None ->
-                    [
-                      Exp (FunctionCall (func_name, params));
-                      Exp (FunctionCall (return_true, []));
-                    ]
-              in
-              ( FunctionDef
-                  ( func_name,
-                    input_args,
-                    return_args,
-                    Let
-                      ( (List.hd storage_args, List.tl storage_args),
-                        FunctionCall (get_storage, []) )
-                    :: translate_public body return_args
-                         (input_renaming @ storage_renaming) ),
-                Some (Case (sig_string, case_result)) )
-          | _ -> raise Not_implemented)
-      | None -> raise Not_implemented)
-  | _ -> assert false
 
 let backend source_file Typedtree.{ structure; _ } =
   match structure with
@@ -561,15 +452,17 @@ let backend source_file Typedtree.{ structure; _ } =
       in
       (* getting val expression (types are not yet implemented) *)
       let types, exps = split_module_str items in
+      (* getting the number of storage *)
+      let storage_num = get_storage_num types in
       (* getting function declarations and dispatcher cases *)
       let funcs, cases =
-        List.split (List.map (translate_external_func func_sigs) exps)
+        List.split
+          (List.map (translate_external_func func_sigs storage_num) exps)
       in
-      (* getting the number of storage *)
-      let stor_num = get_storage_num types in
       (* generating and adding set/get storage functions *)
       let default_function_defs =
-        get_storage_def stor_num :: set_storage_def stor_num
+        get_storage_def storage_num
+        :: set_storage_def storage_num
         :: default_function_defs
       in
       (* code fragment: dispatcher *)

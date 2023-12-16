@@ -9,6 +9,8 @@ module TwoStorage : sig
   val get_snd : unit -> storage -> int * storage
   val swap : unit -> storage -> unit * storage
   val total : unit -> storage -> int * storage
+  val set_fst_snd : int * int -> storage -> unit * storage
+  val get_fst_snd : unit -> storage -> (int * int) * storage
 end = struct
   type storage = int * int
 
@@ -23,4 +25,14 @@ end = struct
   let total () (s1, s2) =
     let n = s1 + s2 in
     (n, (s1, s2))
+
+  let set_fst_snd (x, y) s =
+    let (), s = set_fst x s in
+    let (), s = set_snd y s in
+    ((), s)
+
+  let get_fst_snd () s =
+    let x, s = get_fst () s in
+    let y, s = get_snd () s in
+    ((x, y), s)
 end

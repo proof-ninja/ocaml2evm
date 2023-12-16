@@ -1,7 +1,6 @@
 open Asttypes
 open Typedtree
 
-type typedid = string * Types.type_expr
 type bop = Add | Sub | Mul | Div
 
 type aval =
@@ -11,21 +10,13 @@ type aval =
   | StrV of string
   | UnitV
 
-type funexp =
-  | Val of aval
-  | Bop of (aval * bop * aval)
-  | App of (aval * aval list)
+type letexp =
+  | LVal of aval
+  | LBop of (aval * bop * aval)
+  | LApp of (aval * aval list)
 
-type acexp =
-  | Fexp of funexp
-  (* | Val of aval
-     | Bop of (aval * bop * aval)
-     | App of (aval * aval list) *)
-  | Tuple of aval list
+type resexp = RVal of aval | RTuple of aval list
+type pexp = Rexp of resexp | Letin of string list * letexp * pexp
 
-type aexp = ACexp of acexp | ALetin of typedid * acexp * aexp
-type pexp = Cexp of acexp | Letin of string list * funexp * pexp
-
-val fresh_var : unit -> string
 val normalize : expression -> (label * label list) list -> pexp
 val string_of_pexp : pexp -> string

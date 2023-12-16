@@ -83,4 +83,17 @@ describe('TwoStorage', async () => {
     assert.equal(55, v['0']);
     assert.equal(89, v['1']);
   });
+
+  it('function application: set2', async () => {
+    await contract.methods.set_fst_snd(300, 400).send({ from: from });
+    const v = await contract.methods.get().call();
+    assert.equal(300, v['0']);
+    assert.equal(400, v['1']);
+  });
+
+  it('function application: get2', async () => {
+    const v = await contract.methods.get_fst_snd().call();
+    assert.equal(100, v['0']);
+    assert.equal(200, v['1']);
+  });
 });
