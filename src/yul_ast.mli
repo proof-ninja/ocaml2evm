@@ -34,6 +34,7 @@ and dialect =
   | And of (exp * exp)
   | Or of (exp * exp)
   | Shr of (exp * exp)
+  | Keccak256 of (exp * exp)
   | Mload of exp
   | Mstore of (exp * exp)
   | Sload of exp

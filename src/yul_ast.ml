@@ -34,6 +34,7 @@ and dialect =
   | And of (exp * exp)
   | Or of (exp * exp)
   | Shr of (exp * exp)
+  | Keccak256 of (exp * exp)
   | Mload of exp
   | Mstore of (exp * exp)
   | Sload of exp
@@ -130,6 +131,7 @@ and string_of_yul_dialect = function
   | And x -> "and" ^ string_of_dialect_arg_2 x
   | Or x -> "or" ^ string_of_dialect_arg_2 x
   | Shr x -> "shr" ^ string_of_dialect_arg_2 x
+  | Keccak256 x -> "keccak256" ^ string_of_dialect_arg_2 x
   | Mload x -> "mload" ^ string_of_dialect_arg_1 x
   | Mstore x -> "mstore" ^ string_of_dialect_arg_2 x
   | Sload x -> "sload" ^ string_of_dialect_arg_1 x

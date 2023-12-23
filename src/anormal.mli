@@ -9,14 +9,17 @@ type aval =
   | BoolV of bool
   | StrV of string
   | UnitV
+  | HashAdd
+  | HashFind
+  | Bop of bop
 
-type letexp =
-  | LVal of aval
-  | LBop of (aval * bop * aval)
-  | LApp of (aval * aval list)
-
+type letexp = LVal of aval | LApp of (aval * aval list)
 type resexp = RVal of aval | RTuple of aval list
-type pexp = Rexp of resexp | Letin of string list * letexp * pexp
+
+type pexp =
+  | Rexp of resexp
+  | Seq of letexp * pexp
+  | Letin of string list * letexp * pexp
 
 val normalize : expression -> (label * label list) list -> pexp
 val string_of_pexp : pexp -> string

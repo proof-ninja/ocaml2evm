@@ -1,0 +1,23 @@
+{
+  "contractName": "SimpleHash",
+  "abi": [
+    {
+      "name": "set",
+      "type": "function",
+      "inputs": [
+        { "name": "", "type": "uint256" }, { "name": "", "type": "uint256" }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "name": "get",
+      "type": "function",
+      "inputs": [ { "name": "", "type": "uint256" } ],
+      "outputs": [ { "name": "", "type": "uint256" } ],
+      "stateMutability": "nonpayable"
+    }
+  ],
+  "bytecode": "335f55608e61000f5f39608e5ff3fe6005607c565b80631ab06ee514602f57639507d39a14601c575f80f35b602b600160275f6084565b6054565b606c565b60456001603a816084565b60415f6084565b6049565b6073565b60519192605f565b55565b605b91605f565b5490565b905f5260205260405f2090565b5f5260205ff35b60015f5260205ff35b5f3560e01c90565b602002600401359056",
+  "deployedBytecode": "6005607c565b80631ab06ee514602f57639507d39a14601c575f80f35b602b600160275f6084565b6054565b606c565b60456001603a816084565b60415f6084565b6049565b6073565b60519192605f565b55565b605b91605f565b5490565b905f5260205260405f2090565b5f5260205ff35b60015f5260205ff35b5f3560e01c90565b602002600401359056"
+}

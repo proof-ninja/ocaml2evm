@@ -29,6 +29,7 @@ let return_uint = "returnUint"
 let return_true = "returnTrue"
 let get_storage = "getStorage"
 let set_storage = "setStorage"
+let get_hash_slot = "getHashSlot"
 let selector = "selector"
 let decode_as_uint = "decodeAsUint"
 let decode_as_address = "decodeAsAddress"
@@ -97,6 +98,21 @@ let set_storage_def n =
   let assigns = gen_store_vars num_args in
   FunctionDef (set_storage, args, [], assigns)
 
+let get_hash_slot_def =
+  let slot = "$slot" in
+  let key = "$key" in
+  let data_slot = "$dataSlot" in
+  FunctionDef
+    ( get_hash_slot,
+      [ slot; key ],
+      [ data_slot ],
+      [
+        Exp (EVM (Mstore (Literal (Hex 0), ID key)));
+        Exp (EVM (Mstore (Literal (Hex 32), ID slot)));
+        Assign
+          ((data_slot, []), EVM (Keccak256 (Literal (Hex 0), Literal (Hex 64))));
+      ] )
+
 let selector_def =
   let return_arg = "ret" in
   FunctionDef
@@ -142,20 +158,26 @@ let rec split_module_sig = function
 
 (* name of storage type *)
 (* for now, storage type must be int *)
-let storage_name = function
-  | [ { typ_id = s; _ } ] -> s
+let get_storage_name = function
+  | [ { typ_id = s; _ } ] -> [ Some s; None ]
+  | [ { typ_id = s1; _ }; { typ_id = s2; _ } ] -> [ Some s1; Some s2 ]
   | _ -> raise Not_implemented
 
-let get_storage_num = function
-  | [ { typ_manifest = Some t; _ } ] ->
-      let rec get_storage_num_aux { ctyp_desc = t; _ } =
-        match t with
-        | Ttyp_constr _ -> 1
-        | Ttyp_tuple types ->
-            List.fold_left (fun acc x -> get_storage_num_aux x + acc) 0 types
-        | _ -> assert false
-      in
-      get_storage_num_aux t
+let get_storage_num =
+  let rec get_storage_num_aux { ctyp_desc = t; _ } =
+    match t with
+    | Ttyp_constr (p, _, _) -> (
+        match p with
+        | Pident id -> if Ident.name id = "unit" then 0 else 1
+        | _ -> 1)
+    | Ttyp_tuple types ->
+        List.fold_left (fun acc x -> get_storage_num_aux x + acc) 0 types
+    | _ -> assert false
+  in
+  function
+  | [ { typ_manifest = Some t; _ } ] -> (get_storage_num_aux t, 0)
+  | [ { typ_manifest = Some t1; _ }; { typ_manifest = Some t2; _ } ] ->
+      (get_storage_num_aux t1, get_storage_num_aux t2)
   | _ -> assert false
 
 let abi_input_of_typ typ =
@@ -221,34 +243,42 @@ let returner_in_case = function
       let n = List.length x in
       (gen_return_uint_name n, return_uint_def n)
 
+let rec uncurry_sig = function
+  | Ttyp_arrow (_, { ctyp_desc = arg; _ }, { ctyp_desc = body; _ }) ->
+      let args, ret = uncurry_sig body in
+      (arg :: args, ret)
+  | Ttyp_tuple [ { ctyp_desc = p1; _ }; { ctyp_desc = p2; _ } ] -> ([], (p1, p2))
+  | _ -> raise Not_implemented
+
 (* accesible functions must be the form "params -> storage -> (return val, storage)" *)
 (* generating (ABI, (func_name, keccak256 of a function signature)) from a signature  *)
-let abi_of_sig stor = function
-  | { val_id = name; val_desc = { ctyp_desc = core_desc; _ }; _ } -> (
-      match core_desc with
-      | Ttyp_arrow
-          ( _,
-            { ctyp_desc = arg; _ },
-            {
-              ctyp_desc =
-                Ttyp_arrow
-                  ( _,
-                    { ctyp_desc = Ttyp_constr (Path.Pident s1, _, _); _ },
-                    {
-                      ctyp_desc =
-                        Ttyp_tuple
-                          [
-                            { ctyp_desc = ret; _ };
-                            {
-                              ctyp_desc = Ttyp_constr (Path.Pident s2, _, _);
-                              _;
-                            };
-                          ];
-                      _;
-                    } );
-              _;
-            } ) ->
-          if Ident.same stor s1 && Ident.same stor s2 then
+let abi_of_sig = function
+  | [ Some stor; mstor ] -> (
+      function
+      | { val_id = name; val_desc = { ctyp_desc = core_desc; _ }; _ } ->
+          let args, ret, s2 =
+            match uncurry_sig core_desc with
+            | args, (ret, Ttyp_constr (Path.Pident s2, _, _)) -> (args, ret, s2)
+            | _ -> raise Not_allowed_function
+          in
+          let arg, s1, ms =
+            match args with
+            | [ arg; Ttyp_constr (Path.Pident s1, _, _) ] -> (arg, s1, None)
+            | [
+             arg;
+             Ttyp_constr (Path.Pident s1, _, _);
+             Ttyp_constr (Path.Pident ms, _, _);
+            ] ->
+                (arg, s1, Some ms)
+            | _ -> raise Not_allowed_function
+          in
+          if
+            (match (ms, mstor) with
+            | Some ms', Some mstor' -> Ident.same ms' mstor'
+            | None, _ -> true
+            | _, _ -> assert false)
+            && Ident.same stor s1 && Ident.same stor s2
+          then
             let func_name = Ident.name name in
             let inputs = abi_input_of_typ arg in
             let outputs = abi_output_of_typ ret in
@@ -268,11 +298,11 @@ let abi_of_sig stor = function
                 params_in_case inputs,
                 return_func,
                 List.length outputs ) )
-          else raise Not_implemented
-      | _ -> raise Not_allowed_function)
+          else raise Not_implemented)
+  | _ -> raise Not_allowed_function
 
-(* translate public (belonging to sig...end) function *)
-let translate_public func_name e =
+(* translate functions *)
+let translate_function func_name e =
   let rec expand_function e =
     match e with
     | {
@@ -292,22 +322,13 @@ let translate_public func_name e =
     | IntV n -> Literal (Dec n)
     | BoolV b -> if b then Literal (Dec 1) else Literal (Dec 0)
     | StrV s -> Literal (Str (Strlit s))
-    | UnitV -> assert false
+    | _ -> assert false
   in
   let translate_aval_args v =
     match v with UnitV -> None | _ -> Some (aval_to_yul v)
   in
   let letexp_to_yul = function
     | LVal v -> aval_to_yul v
-    | LBop (v1, b, v2) ->
-        let v1 = aval_to_yul v1 in
-        let v2 = aval_to_yul v2 in
-        EVM
-          (match b with
-          | Add -> Add (v1, v2)
-          | Sub -> Sub (v1, v2)
-          | Mul -> Mul (v1, v2)
-          | Div -> Div (v1, v2))
     | LApp (Var s, vals) ->
         FunctionCall
           ( s,
@@ -318,6 +339,24 @@ let translate_public func_name e =
                 | None -> acc)
               [] vals
             |> List.rev )
+    | LApp (Bop b, [ v1; v2 ]) ->
+        let v1 = aval_to_yul v1 in
+        let v2 = aval_to_yul v2 in
+        EVM
+          (match b with
+          | Add -> Add (v1, v2)
+          | Sub -> Sub (v1, v2)
+          | Mul -> Mul (v1, v2)
+          | Div -> Div (v1, v2))
+    | LApp (HashAdd, [ h; x; y ]) ->
+        EVM
+          (Sstore
+             ( FunctionCall (get_hash_slot, [ aval_to_yul h; aval_to_yul x ]),
+               aval_to_yul y ))
+    | LApp (HashFind, [ h; x ]) ->
+        EVM
+          (Sload
+             (FunctionCall (get_hash_slot, [ aval_to_yul h; aval_to_yul x ])))
     | _ -> assert false
   in
   let return_exp vals acc =
@@ -339,57 +378,93 @@ let translate_public func_name e =
         match e' with
         | RTuple vals -> return_exp vals acc
         | RVal v -> return_exp [ v ] acc)
-    | Letin (vars, e1, e2) -> (
+    | Seq (e1, e2) ->
+        let acc = Exp (letexp_to_yul e1) :: acc in
+        translate_body_aux e2 acc
+    | Letin (vars, e1, e2) ->
         let acc = Let ((List.hd vars, List.tl vars), letexp_to_yul e1) :: acc in
-        match e2 with
-        | Rexp (RTuple vals) -> return_exp vals acc
-        | Letin _ -> translate_body_aux e2 acc
-        | _ -> assert false)
+        translate_body_aux e2 acc
   in
   let statements, return_vars = translate_body_aux (normalize body rename) [] in
   let statements = List.rev statements in
   let return_vars = List.rev return_vars in
   FunctionDef (func_name, args, return_vars, statements)
 
-let translate_external_func func_sigs storage_num = function
+let translate_external_func func_sigs storage_num mut_storage_num = function
   | { vb_pat = { pat_desc = Tpat_var (func_name, _); _ }; vb_expr = e; _ } :: []
     -> (
-      match
-        List.find_opt
-          (fun (x, _, _, _, _) -> x = Ident.name func_name)
-          func_sigs
-      with
-      | Some (_, sig_string, params, returner, return_num) ->
-          let func_name = Ident.unique_name func_name in
-          let func_def = translate_public func_name e in
-          let set_stor_vals, return_vals, return_stor_vals =
-            let rec gen_return_vals n =
-              if n = 0 then [] else Utils.fresh_var () :: gen_return_vals (n - 1)
+      let func_uniq_name = Ident.unique_name func_name in
+      ( translate_function func_uniq_name e,
+        (* if the function is public, then a switch statement is generated. *)
+        match
+          List.find_opt
+            (fun (x, _, _, _, _) -> x = Ident.name func_name)
+            func_sigs
+        with
+        | Some (_, sig_string, params, returner, return_num) ->
+            let set_stor_vals, returned_vals, returned_stor_vals, mut_stor_vals
+                =
+              let rec gen_return_vals n =
+                if n = 0 then []
+                else Utils.fresh_var () :: gen_return_vals (n - 1)
+              in
+              ( List.rev (gen_return_vals storage_num),
+                List.rev (gen_return_vals return_num),
+                List.rev (gen_return_vals storage_num),
+                List.init mut_storage_num (fun x ->
+                    Literal (Hex (x + storage_num + 1))) )
             in
-            ( List.rev (gen_return_vals storage_num),
-              List.rev (gen_return_vals return_num),
-              List.rev (gen_return_vals storage_num) )
-          in
-          let result_vals = return_vals @ return_stor_vals in
-          let case_result =
-            [
-              Let
-                ( (List.hd set_stor_vals, List.tl set_stor_vals),
-                  FunctionCall (get_storage, []) );
-              Let
-                ( (List.hd result_vals, List.tl result_vals),
-                  FunctionCall
-                    (func_name, params @ List.map (fun x -> ID x) set_stor_vals)
-                );
-              Exp
-                (FunctionCall
-                   (set_storage, List.map (fun x -> ID x) return_stor_vals));
-              Exp
-                (FunctionCall (returner, List.map (fun x -> ID x) return_vals));
-            ]
-          in
-          (func_def, Some (Case (sig_string, case_result)))
-      | _ -> raise Not_implemented)
+            let call_get_storage, call_set_storage =
+              match (set_stor_vals, returned_stor_vals) with
+              | [], [] -> (None, None)
+              | _ :: _, _ :: _ ->
+                  ( Some
+                      (Let
+                         ( (List.hd set_stor_vals, List.tl set_stor_vals),
+                           FunctionCall (get_storage, []) )),
+                    Some
+                      (Exp
+                         (FunctionCall
+                            ( set_storage,
+                              List.map (fun x -> ID x) returned_stor_vals ))) )
+              | _, _ -> assert false
+            in
+            let result_vals = returned_vals @ returned_stor_vals in
+            let call_body_function =
+              match result_vals with
+              | [] ->
+                  Some
+                    (Exp
+                       (FunctionCall
+                          ( func_uniq_name,
+                            params
+                            @ List.map (fun x -> ID x) set_stor_vals
+                            @ mut_stor_vals )))
+              | _ ->
+                  Some
+                    (Let
+                       ( (List.hd result_vals, List.tl result_vals),
+                         FunctionCall
+                           ( func_uniq_name,
+                             params
+                             @ List.map (fun x -> ID x) set_stor_vals
+                             @ mut_stor_vals ) ))
+            in
+            let case_result =
+              List.filter_map
+                (fun x -> x)
+                [
+                  call_get_storage;
+                  call_body_function;
+                  call_set_storage;
+                  Some
+                    (Exp
+                       (FunctionCall
+                          (returner, List.map (fun x -> ID x) returned_vals)));
+                ]
+            in
+            Some (Case (sig_string, case_result))
+        | None -> None ))
   | _ -> assert false
 
 (* splitting module structure to types and external vals and internal vals *)
@@ -439,7 +514,7 @@ let backend source_file Typedtree.{ structure; _ } =
       let contract_name = Ident.name contract_name in
       (* getting storage id and signatures *)
       let stor, sigs = split_module_sig sigs in
-      let stor_name = storage_name stor in
+      let stor_name = get_storage_name stor in
       (* getting (ABI and newly required return functions) and function signatures *)
       let abis_and_funcs, func_sigs =
         List.split (List.map (abi_of_sig stor_name) sigs)
@@ -453,17 +528,25 @@ let backend source_file Typedtree.{ structure; _ } =
       (* getting val expression (types are not yet implemented) *)
       let types, exps = split_module_str items in
       (* getting the number of storage *)
-      let storage_num = get_storage_num types in
+      let storage_num, mut_storage_num = get_storage_num types in
       (* getting function declarations and dispatcher cases *)
       let funcs, cases =
         List.split
-          (List.map (translate_external_func func_sigs storage_num) exps)
+          (List.map
+             (translate_external_func func_sigs storage_num mut_storage_num)
+             exps)
       in
       (* generating and adding set/get storage functions *)
       let default_function_defs =
-        get_storage_def storage_num
-        :: set_storage_def storage_num
-        :: default_function_defs
+        let storage_operations =
+          if storage_num > 0 then
+            [ get_storage_def storage_num; set_storage_def storage_num ]
+          else []
+        in
+        let mut_storage_operations =
+          if mut_storage_num > 0 then [ get_hash_slot_def ] else []
+        in
+        storage_operations @ mut_storage_operations @ default_function_defs
       in
       (* code fragment: dispatcher *)
       let dispatcher =
