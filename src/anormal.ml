@@ -11,6 +11,7 @@ type aval =
   | UnitV
   | HashAdd
   | HashFind
+  | Caller
   | Bop of bop
 
 type acexp =
@@ -41,6 +42,7 @@ let string_of_aval = function
   | UnitV -> "()"
   | HashAdd -> "Hashtbl.add"
   | HashFind -> "Hashtbl.find"
+  | Caller -> "caller"
   | Bop b -> "(" ^ string_of_bop b ^ ")"
 
 (* let string_of_acexp = function
@@ -101,6 +103,7 @@ let pdot_to_aval p s =
       if s = "add" then HashAdd
       else if s = "find" then HashFind
       else assert false
+  | Path.Pdot (_, "Primitives") -> if s = "caller" then Caller else assert false
   | _ -> Bop (get_bop s)
 
 let count_vars t =

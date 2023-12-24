@@ -1,0 +1,9 @@
+(library
+ (name OCamYul)
+ (public_name ocamyul.lib)
+ (modules primitives))
+
+(env
+ (dev
+  (flags
+   (:standard -warn-error -a))))

@@ -1,5 +1,6 @@
 (library
- (name test_contract))
+ (name test_contract)
+ (libraries ocamyul.lib))
 
 (env
  (dev

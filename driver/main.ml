@@ -22,6 +22,16 @@ module Compile_common = struct
     let module_name = module_of_filename source_file output_prefix in
     Env.set_unit_name module_name;
     let env = Compmisc.initial_env () in
+    (* dirty hack *)
+    let env =
+      env
+      |> Env.add_signature
+           (Env.read_signature "OCamYul"
+              "_build/default/lib/.OCamYul.objs/byte/oCamYul.cmi")
+      |> Env.add_signature
+           (Env.read_signature "OCamYul__Primitives"
+              "_build/default/lib/.OCamYul.objs/byte/oCamYul__Primitives.cmi")
+    in
     let dump_file = String.concat "." [ output_prefix; dump_ext ] in
     Compmisc.with_ppf_dump ~file_prefix:dump_file @@ fun ppf_dump ->
     k
@@ -108,6 +118,7 @@ module Compile_common = struct
         (if Clflags.(should_stop_after Compiler_pass.Parsing) then ()
          else
            let typed = typecheck_impl info parsed in
+           (* Printtyped.implementation Format.std_formatter typed.structure; *)
            if Clflags.(should_stop_after Compiler_pass.Typing) then ()
            else backend info typed);
         Warnings.check_fatal ())
@@ -135,20 +146,27 @@ module Compile = struct
 end
 
 let _ =
-  let source = Sys.argv.(1) in
-  let prefix =
-    String.split_on_char '.' source
-    |> List.rev |> List.tl |> List.rev |> String.concat "."
+  let dir = Sys.argv.(1) in
+  let ls_dir dir =
+    let rec ls_dir_aux res = function
+      | x :: xs ->
+          if x = "node_modules" || x = "_build" then ls_dir_aux res xs
+          else if Sys.is_directory x then
+            Sys.readdir x |> Array.to_list
+            |> List.map (Filename.concat x)
+            |> ( @ ) xs |> ls_dir_aux res
+          else if Filename.check_suffix x ".ml" then ls_dir_aux (x :: res) xs
+          else ls_dir_aux res xs
+      | [] -> res
+    in
+    ls_dir_aux [] [ dir ]
   in
-  Compile.implementation ~start_from:Parsing ~source_file:source
-    ~output_prefix:prefix
-(* Compile.implementation ~start_from:Parsing ~source_file:"simple_storage.ml"
-     ~output_prefix:"simple_storage";
-   Compile.implementation ~start_from:Parsing ~source_file:"two_storage.ml"
-     ~output_prefix:"two_storage" *)
-
-(* let _ =
-   print_endline "Sys.argv test";
-   print_endline Sys.argv.(0);
-   print_endline Sys.argv.(1);
-   print_endline Sys.argv.(2) *)
+  let get_prefix s =
+    String.split_on_char '.' s |> List.rev |> List.tl |> List.rev
+    |> String.concat "."
+  in
+  List.iter
+    (fun source ->
+      Compile.implementation ~start_from:Parsing ~source_file:source
+        ~output_prefix:(get_prefix source))
+    (ls_dir dir)

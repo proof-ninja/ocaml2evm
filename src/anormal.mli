@@ -11,6 +11,7 @@ type aval =
   | UnitV
   | HashAdd
   | HashFind
+  | Caller
   | Bop of bop
 
 type letexp = LVal of aval | LApp of (aval * aval list)

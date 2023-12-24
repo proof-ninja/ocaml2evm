@@ -19,7 +19,7 @@ describe('SimpleHash', async () => {
       .deploy({ data: bytecode })
       .send({ from: accounts[0], gas: 1000000 });
 
-    await contract.methods.set(0, 100).send({ from: from });
+    await contract.methods.set(from, 100).send({ from: from });
   });
 
   it('should deploy', () => {
@@ -27,13 +27,21 @@ describe('SimpleHash', async () => {
   });
 
   it('getting value', async () => {
-    const v = await contract.methods.get(0).call();
+    const v = await contract.methods.get(from).call();
     assert.equal(100, v);
   });
 
   it('setting value', async () => {
-    await contract.methods.set(10, 200).send({ from: from });
-    const v = await contract.methods.get(10).call();
+    let address = accounts[1];
+    await contract.methods.set(address, 200).send({ from: from });
+    const v = await contract.methods.get(address).call();
+    assert.equal(200, v);
+  });
+
+  it('setting value to caller', async () => {
+    let address = accounts[2];
+    await contract.methods.set_caller(200).send({ from: address });
+    const v = await contract.methods.get(address).call();
     assert.equal(200, v);
   });
 });
