@@ -6,33 +6,59 @@ module ERC20 : sig
 
   val total_supply : unit -> storage -> int * storage
   val balance_of : address -> storage -> mut_storage -> int * storage
+  val allowance : address * address -> storage -> mut_storage -> int * storage
   val mint : int -> storage -> mut_storage -> unit * storage
   val burn : int -> storage -> mut_storage -> unit * storage
   val transfer : address * int -> storage -> mut_storage -> unit * storage
+  val approve : address * int -> storage -> mut_storage -> unit * storage
+
+  val transfer_from :
+    address * address * int -> storage -> mut_storage -> unit * storage
 end = struct
   type storage = int
-  type mut_storage = (address, int) Hashtbl.t
+
+  type mut_storage =
+    (address, int) Hashtbl.t * (address, (address, int) Hashtbl.t) Hashtbl.t
 
   let total_supply () total = (total, total)
-  let balance_of account total h = (Hashtbl.find h account, total)
 
-  let mint n total h =
-    let from_address = caller () in
-    let from_balance = Hashtbl.find h from_address in
-    Hashtbl.add h from_address (from_balance + n);
-    ((), total + n)
+  let balance_of account total (balance, _) =
+    (Hashtbl.find balance account, total)
 
-  let burn n total h =
-    let from_address = caller () in
-    let from_balance = Hashtbl.find h from_address in
-    Hashtbl.add h from_address (from_balance - n);
-    ((), total - n)
+  let allowance (owner, allowed_address) total (_, allow) =
+    (Hashtbl.find (Hashtbl.find allow owner) allowed_address, total)
 
-  let transfer (to_address, n) total h =
+  let mint amount total (balance, _) =
     let from_address = caller () in
-    let from_balance = Hashtbl.find h from_address in
-    let to_balance = Hashtbl.find h to_address in
-    Hashtbl.add h from_address (from_balance - n);
-    Hashtbl.add h to_address (to_balance + n);
+    let from_balance = Hashtbl.find balance from_address in
+    Hashtbl.add balance from_address (from_balance + amount);
+    ((), total + amount)
+
+  let burn amount total (balance, _) =
+    let from_address = caller () in
+    let from_balance = Hashtbl.find balance from_address in
+    Hashtbl.add balance from_address (from_balance - amount);
+    ((), total - amount)
+
+  let transfer (to_address, amount) total (balance, _) =
+    let from_address = caller () in
+    let from_balance = Hashtbl.find balance from_address in
+    let to_balance = Hashtbl.find balance to_address in
+    Hashtbl.add balance from_address (from_balance - amount);
+    Hashtbl.add balance to_address (to_balance + amount);
+    ((), total)
+
+  let approve (allowed_address, amount) total (_, allow) =
+    Hashtbl.add (Hashtbl.find allow (caller ())) allowed_address amount;
+    ((), total)
+
+  let transfer_from (from_address, to_address, amount) total (balance, allow) =
+    let from_address_allow = Hashtbl.find allow from_address in
+    let allowed_balance = Hashtbl.find from_address_allow (caller ()) in
+    Hashtbl.add from_address_allow (caller ()) (allowed_balance - amount);
+    let from_balance = Hashtbl.find balance from_address in
+    let to_balance = Hashtbl.find balance to_address in
+    Hashtbl.add balance from_address (from_balance - amount);
+    Hashtbl.add balance to_address (to_balance + amount);
     ((), total)
 end

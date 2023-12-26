@@ -73,4 +73,37 @@ describe('ERC20', async () => {
     assert.equal(10, v1);
     assert.equal(20, v2);
   });
+
+  it('approve', async () => {
+    let account0 = from;
+    let account1 = accounts[1];
+    let account2 = accounts[2];
+    await contract.methods.approve(account1, 40).send({ from: account0 });
+    await contract.methods.approve(account2, 30).send({ from: account1 });
+    await contract.methods.approve(account0, 20).send({ from: account2 });
+    const v0 = await contract.methods.allowance(account0, account1).call();
+    const v1 = await contract.methods.allowance(account1, account2).call();
+    const v2 = await contract.methods.allowance(account2, account0).call();
+    assert.equal(40, v0);
+    assert.equal(30, v1);
+    assert.equal(20, v2);
+  });
+
+  it('transfer_from', async () => {
+    let account0 = from;
+    let account1 = accounts[1];
+    let account2 = accounts[2];
+    await contract.methods.approve(account1, 60).send({ from: account0 });
+    await contract.methods.approve(account2, 50).send({ from: account1 });
+    await contract.methods.approve(account0, 40).send({ from: account2 });
+    await contract.methods.transfer_from(account0, account2, 50).send({ from: account1 });
+    await contract.methods.transfer_from(account2, account1, 30).send({ from: account0 });
+    await contract.methods.transfer_from(account1, account0, 20).send({ from: account2 });
+    const v0 = await contract.methods.balance_of(account0).call();
+    const v1 = await contract.methods.balance_of(account1).call();
+    const v2 = await contract.methods.balance_of(account2).call();
+    assert.equal(70, v0);
+    assert.equal(10, v1);
+    assert.equal(20, v2);
+  });
 });
