@@ -99,12 +99,19 @@ let get_bop s =
 
 let pdot_to_aval p s =
   match p with
-  | Path.Pdot (_, "Hashtbl") ->
-      if s = "add" then HashAdd
-      else if s = "find" then HashFind
+  | Path.Pdot (Path.Pident id, "Hashtbl") ->
+      if Ident.name id = "Stdlib" then
+        if s = "add" then HashAdd
+        else if s = "find" then HashFind
+        else assert false
       else assert false
-  | Path.Pdot (_, "Primitives") -> if s = "caller" then Caller else assert false
-  | _ -> Bop (get_bop s)
+  | Path.Pdot (Path.Pident id, "Primitives") ->
+      if Ident.name id = "OCamYul" then
+        if s = "caller" then Caller else assert false
+      else assert false
+  | Path.Pident id ->
+      if Ident.name id = "Stdlib" then Bop (get_bop s) else assert false
+  | _ -> assert false
 
 let count_vars t =
   let open Types in
@@ -128,7 +135,7 @@ let rec normalize_aux { exp_desc = e; exp_type = t; _ } k =
   | Texp_ident (Pident s, _, _) -> (AVal (Var (Ident.unique_name s)), t) |> k
   | Texp_ident (Pdot (p, s), _, _) -> (AVal (pdot_to_aval p s), t) |> k
   | Texp_constant x -> (AVal (const_to_aval x), t) |> k
-  | Texp_construct ({ txt = Longident.Lident s; _ }, _, _) ->
+  | Texp_construct (_, { Types.cstr_name = s; _ }, _) ->
       ( AVal
           (if s = "true" then BoolV true
            else if s = "false" then BoolV false

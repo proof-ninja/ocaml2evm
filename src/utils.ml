@@ -29,9 +29,12 @@ let flatten_tuple_pat p =
   let rec flatten_tuple_pat_aux (p, t) =
     match (p, get_desc t) with
     | Tpat_any, _ -> ([], [ fresh_var () ])
-    | ( Tpat_construct (_, { Types.cstr_name = "()"; _ }, [], _),
-        Tconstr (_, [], _) ) ->
-        ([], [])
+    | Tpat_construct (_, { cstr_res = res_t; _ }, [], _), Tconstr (_, [], _)
+      -> (
+        match get_desc res_t with
+        | Tconstr (Path.Pident t_name, _, _) ->
+            if Ident.name t_name = "unit" then ([], []) else assert false
+        | _ -> assert false)
     | Tpat_var (s, _), t ->
         let n = count_tuple_elem t in
         if n > 1 then
