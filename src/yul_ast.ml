@@ -33,6 +33,7 @@ and dialect =
   | Eq of (exp * exp)
   | And of (exp * exp)
   | Or of (exp * exp)
+  | Iszero of exp
   | Shr of (exp * exp)
   | Keccak256 of (exp * exp)
   | Mload of exp
@@ -85,8 +86,7 @@ and string_of_yul_statement n = function
       "let " ^ string_of_idlist vars (fun x -> x) ^ " := " ^ string_of_yul_exp e
   | Assign (vars, e) ->
       string_of_idlist vars (fun x -> x) ^ " := " ^ string_of_yul_exp e
-  | If (e, b) ->
-      "if " ^ string_of_yul_exp e ^ " " ^ string_of_yul_block (n + 1) b
+  | If (e, b) -> "if " ^ string_of_yul_exp e ^ " " ^ string_of_yul_block n b
   | Exp e -> string_of_yul_exp e
   | Switch (e, cases, b) ->
       indent_depth_to_indent n ^ "switch " ^ string_of_yul_exp e
@@ -130,6 +130,7 @@ and string_of_yul_dialect = function
   | Eq x -> "eq" ^ string_of_dialect_arg_2 x
   | And x -> "and" ^ string_of_dialect_arg_2 x
   | Or x -> "or" ^ string_of_dialect_arg_2 x
+  | Iszero x -> "iszero" ^ string_of_dialect_arg_1 x
   | Shr x -> "shr" ^ string_of_dialect_arg_2 x
   | Keccak256 x -> "keccak256" ^ string_of_dialect_arg_2 x
   | Mload x -> "mload" ^ string_of_dialect_arg_1 x
@@ -143,7 +144,7 @@ and string_of_yul_dialect = function
   | Dataoffset x -> "dataoffset" ^ "(" ^ string_of_strlit x ^ ")"
   | Datacopy x -> "datacopy" ^ string_of_dialect_arg_3 x
   | Return x -> "return" ^ string_of_dialect_arg_2 x
-  | Revert x -> "return" ^ string_of_dialect_arg_2 x
+  | Revert x -> "revert" ^ string_of_dialect_arg_2 x
 
 and string_of_dialect_arg_1 x = "(" ^ string_of_yul_exp x ^ ")"
 
@@ -194,7 +195,6 @@ let deploy_code =
     ]
 
 (* names of default functions *)
-let return_uint = "returnUint"
 let return_true = "returnTrue"
 let return_unit = "returnUnit"
 let get_storage = "getStorage"
@@ -203,6 +203,10 @@ let get_hash_slot = "getHashSlot"
 let selector = "selector"
 let decode_as_uint = "decodeAsUint"
 let decode_as_address = "decodeAsAddress"
+let safe_add = "safeAdd"
+let safe_sub = "safeSub"
+let safe_mul = "safeMul"
+let safe_div = "safeDiv"
 
 (* definitions of default functions *)
 let gen_return_uint_name n = "returnUint_" ^ string_of_int n
@@ -331,5 +335,85 @@ let decode_as_address_def =
 let default_revert_def =
   Default [ Exp (EVM (Revert (Literal (Dec 0), Literal (Dec 0)))) ]
 
+let safe_add_def =
+  let arg_x, arg_y = ("$x", "$y") in
+  let return_arg = "$r" in
+  FunctionDef
+    ( safe_add,
+      [ arg_x; arg_y ],
+      [ return_arg ],
+      [
+        Assign ((return_arg, []), EVM (Add (ID arg_x, ID arg_y)));
+        If
+          ( EVM
+              (Or
+                 ( EVM (Gt (ID arg_x, ID return_arg)),
+                   EVM (Gt (ID arg_y, ID return_arg)) )),
+            [ Exp (EVM (Revert (Literal (Dec 0), Literal (Dec 0)))) ] );
+      ] )
+
+let safe_sub_def =
+  let arg_x, arg_y = ("$x", "$y") in
+  let return_arg = "$r" in
+  FunctionDef
+    ( safe_sub,
+      [ arg_x; arg_y ],
+      [ return_arg ],
+      [
+        Assign ((return_arg, []), EVM (Sub (ID arg_x, ID arg_y)));
+        If
+          ( EVM (Gt (ID return_arg, ID arg_x)),
+            [ Exp (EVM (Revert (Literal (Dec 0), Literal (Dec 0)))) ] );
+      ] )
+
+let safe_mul_def =
+  let arg_x, arg_y = ("$x", "$y") in
+  let return_arg = "$r" in
+  FunctionDef
+    ( safe_mul,
+      [ arg_x; arg_y ],
+      [ return_arg ],
+      [
+        Assign ((return_arg, []), EVM (Mul (ID arg_x, ID arg_y)));
+        If
+          ( EVM
+              (Iszero
+                 (EVM
+                    (Or
+                       ( EVM (Iszero (ID arg_x)),
+                         EVM
+                           (Eq (ID arg_y, EVM (Div (ID return_arg, ID arg_x))))
+                       )))),
+            [ Exp (EVM (Revert (Literal (Dec 0), Literal (Dec 0)))) ] );
+      ] )
+
+let safe_div_def =
+  let arg_x, arg_y = ("$x", "$y") in
+  let return_arg = "$r" in
+  FunctionDef
+    ( safe_div,
+      [ arg_x; arg_y ],
+      [ return_arg ],
+      [
+        If
+          ( EVM (Iszero (ID arg_y)),
+            [ Exp (EVM (Revert (Literal (Dec 0), Literal (Dec 0)))) ] );
+        Assign ((return_arg, []), EVM (Div (ID arg_x, ID arg_y)));
+      ] )
+
+(* `default_function_defs` is mutable because
+   adding some functions to default happens in different phases *)
+
 let default_function_defs =
-  [ selector_def; decode_as_uint_def; decode_as_address_def ]
+  ref [ selector_def; decode_as_uint_def; decode_as_address_def ]
+
+let reset_default_function_defs () =
+  default_function_defs :=
+    [ selector_def; decode_as_uint_def; decode_as_address_def ]
+
+let get_default_function_defs () = !default_function_defs
+
+let update_default_function_defs new_func =
+  let defs = !default_function_defs in
+  if List.mem new_func defs then ()
+  else default_function_defs := new_func :: defs

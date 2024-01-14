@@ -24,15 +24,22 @@ let letexp_to_yul = function
               | None -> acc)
             [] vals
           |> List.rev )
-  | LApp (Bop b, [ v1; v2 ]) ->
+  | LApp (Bop b, [ v1; v2 ]) -> (
       let v1 = aval_to_yul v1 in
       let v2 = aval_to_yul v2 in
-      EVM
-        (match b with
-        | Add -> Add (v1, v2)
-        | Sub -> Sub (v1, v2)
-        | Mul -> Mul (v1, v2)
-        | Div -> Div (v1, v2))
+      match b with
+      | Add ->
+          update_default_function_defs safe_add_def;
+          FunctionCall (safe_add, [ v1; v2 ])
+      | Sub ->
+          update_default_function_defs safe_sub_def;
+          FunctionCall (safe_sub, [ v1; v2 ])
+      | Mul ->
+          update_default_function_defs safe_mul_def;
+          FunctionCall (safe_mul, [ v1; v2 ])
+      | Div ->
+          update_default_function_defs safe_div_def;
+          FunctionCall (safe_div, [ v1; v2 ]))
   | LApp (HashReplace, [ h; x; y ]) ->
       EVM
         (Sstore

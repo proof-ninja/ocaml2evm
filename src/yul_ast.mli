@@ -33,6 +33,7 @@ and dialect =
   | Eq of (exp * exp)
   | And of (exp * exp)
   | Or of (exp * exp)
+  | Iszero of exp
   | Shr of (exp * exp)
   | Keccak256 of (exp * exp)
   | Mload of exp
@@ -61,7 +62,6 @@ val runtime : strlit
 val deploy_code : code
 
 (* names of default functions *)
-val return_uint : id
 val return_true : id
 val return_unit : id
 val get_storage : id
@@ -70,6 +70,10 @@ val get_hash_slot : id
 val selector : id
 val decode_as_uint : id
 val decode_as_address : id
+val safe_add : id
+val safe_sub : id
+val safe_mul : id
+val safe_div : id
 
 (* definitions of default functions *)
 val gen_return_uint_name : int -> id
@@ -83,4 +87,12 @@ val selector_def : statement
 val decode_as_uint_def : statement
 val decode_as_address_def : statement
 val default_revert_def : default
-val default_function_defs : block
+val safe_add_def : statement
+val safe_sub_def : statement
+val safe_mul_def : statement
+val safe_div_def : statement
+(* val default_function_defs : block *)
+
+val get_default_function_defs : unit -> block
+val update_default_function_defs : statement -> unit
+val reset_default_function_defs : unit -> unit

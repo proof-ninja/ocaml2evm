@@ -253,14 +253,8 @@ let gen_dispacther ~func_name ~storage_num ~mut_storage_num ~is_mut_arg ~abi =
     in
     Some (Case (keccak_256_for_abi (signature_of_function abi), case_result))
 
-let update_default_functions func_def default_functions =
-  let defs = default_functions () in
-  if List.mem func_def defs then default_functions
-  else fun () -> func_def :: defs
-
 (* generating ABI, default functions, and dispatcher functions *)
-let gen_triple_abi_dispatcher_defs default_function_defs { sig_items = sigs; _ }
-    =
+let gen_triple_abi_dispatcher_defs { sig_items = sigs; _ } =
   let types, vals = split_module_sig sigs in
   let storage_name, mut_storage_name =
     match types with
@@ -284,13 +278,11 @@ let gen_triple_abi_dispatcher_defs default_function_defs { sig_items = sigs; _ }
         else raise Not_implemented
   in
   List.fold_left
-    (fun (abis, default_functions, dispatchers) val_desc ->
+    (fun (abis, dispatchers) val_desc ->
       let abi, func_def, dispatcher = aux val_desc in
-      ( abi :: abis,
-        update_default_functions func_def default_functions,
-        dispatcher :: dispatchers ))
-    ([], default_function_defs, [])
-    vals
+      update_default_function_defs func_def;
+      (abi :: abis, dispatcher :: dispatchers))
+    ([], []) vals
 
 (* translate the body of the function *)
 let translate_function_to_yul func_name e =
@@ -465,11 +457,7 @@ let backend source_file Typedtree.{ structure; _ } =
             };
           ] ->
             let contract_name = Ident.name contract_name in
-            let abis, default_function_defs, cases =
-              gen_triple_abi_dispatcher_defs
-                (fun () -> default_function_defs)
-                sigs
-            in
+            let abis, cases = gen_triple_abi_dispatcher_defs sigs in
             (* getting val expression (types are not yet implemented) *)
             let types, exps = split_module_str items in
             (* getting the number of storage *)
@@ -488,18 +476,13 @@ let backend source_file Typedtree.{ structure; _ } =
             in
             let cases = gen_dispacth_cases cases exps in
             (* generating and adding set/get storage functions *)
-            let default_function_defs =
-              default_function_defs |> fun x ->
-              (if storage_num > 0 then
-                 x
-                 |> update_default_functions (get_storage_def storage_num)
-                 |> update_default_functions (set_storage_def storage_num)
-               else x)
-              |> fun x ->
-              if mut_storage_num > 0 then
-                x |> update_default_functions get_hash_slot_def
-              else x
-            in
+            if storage_num > 0 then (
+              update_default_function_defs (get_storage_def storage_num);
+              update_default_function_defs (set_storage_def storage_num))
+            else ();
+            if mut_storage_num > 0 then
+              update_default_function_defs get_hash_slot_def
+            else ();
             (* code fragment: dispatcher *)
             let dispatcher =
               Switch (FunctionCall (selector, []), cases, default_revert_def)
@@ -512,11 +495,14 @@ let backend source_file Typedtree.{ structure; _ } =
                   Some
                     (Object
                        ( runtime,
-                         Code ((dispatcher :: funcs) @ default_function_defs ()),
+                         Code
+                           ((dispatcher :: funcs) @ get_default_function_defs ()),
                          None )) )
             in
             let result_json = json_of_yul abis yul_code contract_name in
             write_json_contract source_file contract_name result_json
         | _ -> raise Not_implemented
       in
+      (* before compilation, need to reset default functions to avoid name confliction *)
+      reset_default_function_defs ();
       backend_aux items
