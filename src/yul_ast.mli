@@ -53,3 +53,34 @@ and code = Code of block
 
 val string_of_yul : obj -> string
 val json_string_of_yul : obj -> string
+
+(* names of default runtime *)
+val runtime : strlit
+
+(* deploy code part *)
+val deploy_code : code
+
+(* names of default functions *)
+val return_uint : id
+val return_true : id
+val return_unit : id
+val get_storage : id
+val set_storage : id
+val get_hash_slot : id
+val selector : id
+val decode_as_uint : id
+val decode_as_address : id
+
+(* definitions of default functions *)
+val gen_return_uint_name : int -> id
+val return_uint_def : int -> statement
+val return_true_def : statement
+val return_unit_def : statement
+val get_storage_def : int -> statement
+val set_storage_def : int -> statement
+val get_hash_slot_def : statement
+val selector_def : statement
+val decode_as_uint_def : statement
+val decode_as_address_def : statement
+val default_revert_def : default
+val default_function_defs : block

@@ -12,12 +12,12 @@ end = struct
   type mut_storage = (address, int) Hashtbl.t
 
   let set (x, y) () h =
-    Hashtbl.add h x y;
+    Hashtbl.replace h x y;
     ((), ())
 
   let get x () h = (Hashtbl.find h x, ())
 
   let set_caller x () h =
-    Hashtbl.add h (caller ()) x;
+    Hashtbl.replace h (caller ()) x;
     ((), ())
 end

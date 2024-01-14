@@ -10,6 +10,23 @@ let fresh_var =
   in
   body
 
+let count_vars_in_type t =
+  let open Types in
+  let t = get_desc t in
+  match t with
+  | Ttuple tl ->
+      let rec count_vars_aux t' =
+        let t' = get_desc t' in
+        match t' with
+        | Ttuple tl' -> List.fold_left (fun x y -> x @ count_vars_aux y) [] tl'
+        | Tconstr (Path.Pident p, [], _) ->
+            if Ident.name p = "unit" then [] else [ fresh_var () ]
+        | Tvar _ -> [ fresh_var () ]
+        | _ -> assert false
+      in
+      Some (List.fold_left (fun x y -> x @ count_vars_aux y) [] tl)
+  | _ -> None
+
 let flatten_tuple_pat p =
   let rec count_tuple_elem = function
     | Tconstr _ -> 1

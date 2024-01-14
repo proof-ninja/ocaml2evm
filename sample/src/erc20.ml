@@ -31,34 +31,34 @@ end = struct
   let mint amount total (balance, _) =
     let from_address = caller () in
     let from_balance = Hashtbl.find balance from_address in
-    Hashtbl.add balance from_address (from_balance + amount);
+    Hashtbl.replace balance from_address (from_balance + amount);
     ((), total + amount)
 
   let burn amount total (balance, _) =
     let from_address = caller () in
     let from_balance = Hashtbl.find balance from_address in
-    Hashtbl.add balance from_address (from_balance - amount);
+    Hashtbl.replace balance from_address (from_balance - amount);
     ((), total - amount)
 
   let transfer (to_address, amount) total (balance, _) =
     let from_address = caller () in
     let from_balance = Hashtbl.find balance from_address in
     let to_balance = Hashtbl.find balance to_address in
-    Hashtbl.add balance from_address (from_balance - amount);
-    Hashtbl.add balance to_address (to_balance + amount);
+    Hashtbl.replace balance from_address (from_balance - amount);
+    Hashtbl.replace balance to_address (to_balance + amount);
     ((), total)
 
   let approve (allowed_address, amount) total (_, allow) =
-    Hashtbl.add (Hashtbl.find allow (caller ())) allowed_address amount;
+    Hashtbl.replace (Hashtbl.find allow (caller ())) allowed_address amount;
     ((), total)
 
   let transfer_from (from_address, to_address, amount) total (balance, allow) =
     let from_address_allow = Hashtbl.find allow from_address in
     let allowed_balance = Hashtbl.find from_address_allow (caller ()) in
-    Hashtbl.add from_address_allow (caller ()) (allowed_balance - amount);
+    Hashtbl.replace from_address_allow (caller ()) (allowed_balance - amount);
     let from_balance = Hashtbl.find balance from_address in
     let to_balance = Hashtbl.find balance to_address in
-    Hashtbl.add balance from_address (from_balance - amount);
-    Hashtbl.add balance to_address (to_balance + amount);
+    Hashtbl.replace balance from_address (from_balance - amount);
+    Hashtbl.replace balance to_address (to_balance + amount);
     ((), total)
 end

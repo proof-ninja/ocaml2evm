@@ -177,3 +177,159 @@ let string_of_yul obj = string_of_yul_object 0 obj
 
 let json_string_of_yul x =
   String.map (fun x -> if x = '\n' then ' ' else x) (string_of_yul x)
+
+(* names of default runtime *)
+let runtime = Strlit "runtime"
+
+(* deploy code part *)
+let deploy_code =
+  Code
+    [
+      Exp (EVM (Sstore (Literal (Dec 0), EVM Caller)));
+      Exp
+        (EVM
+           (Datacopy
+              (Literal (Dec 0), EVM (Dataoffset runtime), EVM (Datasize runtime))));
+      Exp (EVM (Return (Literal (Dec 0), EVM (Datasize runtime))));
+    ]
+
+(* names of default functions *)
+let return_uint = "returnUint"
+let return_true = "returnTrue"
+let return_unit = "returnUnit"
+let get_storage = "getStorage"
+let set_storage = "setStorage"
+let get_hash_slot = "getHashSlot"
+let selector = "selector"
+let decode_as_uint = "decodeAsUint"
+let decode_as_address = "decodeAsAddress"
+
+(* definitions of default functions *)
+let gen_return_uint_name n = "returnUint_" ^ string_of_int n
+
+let return_uint_def n =
+  let rec gen_arg_vars n =
+    if n = 0 then []
+    else ("arg_" ^ string_of_int (n - 1), n - 1) :: gen_arg_vars (n - 1)
+  in
+  let num_args = List.rev (gen_arg_vars n) in
+  let rec gen_store_vars args =
+    match args with
+    | [] -> []
+    | (x, n) :: tl ->
+        Exp (EVM (Mstore (Literal (Dec (n * 32)), ID x))) :: gen_store_vars tl
+  in
+  let args = fst (List.split num_args) in
+  let assigns =
+    gen_store_vars num_args
+    @ [ Exp (EVM (Return (Literal (Dec 0), Literal (Hex (32 * n))))) ]
+  in
+  FunctionDef (gen_return_uint_name n, args, [], assigns)
+
+let return_true_def =
+  FunctionDef
+    ( return_true,
+      [],
+      [],
+      [
+        Exp (EVM (Mstore (Literal (Dec 0), Literal (Dec 1))));
+        Exp (EVM (Return (Literal (Dec 0), Literal (Hex 32))));
+      ] )
+
+let return_unit_def =
+  FunctionDef
+    ( return_unit,
+      [],
+      [],
+      [ Exp (EVM (Return (Literal (Dec 0), Literal (Hex 0)))) ] )
+
+let get_storage_def n =
+  let rec gen_ret_vars n =
+    if n = 0 then []
+    else ("ret_" ^ string_of_int (n - 1), n) :: gen_ret_vars (n - 1)
+  in
+  let ret_num_args = List.rev (gen_ret_vars n) in
+  let rec gen_assign_vars args =
+    match args with
+    | [] -> []
+    | (x, n) :: tl ->
+        Assign ((x, []), EVM (Sload (Literal (Dec n)))) :: gen_assign_vars tl
+  in
+  let ret_args = fst (List.split ret_num_args) in
+  let assigns = gen_assign_vars ret_num_args in
+  FunctionDef (get_storage, [], ret_args, assigns)
+
+let set_storage_def n =
+  let rec gen_arg_vars n =
+    if n = 0 then []
+    else ("arg_" ^ string_of_int (n - 1), n) :: gen_arg_vars (n - 1)
+  in
+  let num_args = List.rev (gen_arg_vars n) in
+  let rec gen_store_vars args =
+    match args with
+    | [] -> []
+    | (x, n) :: tl ->
+        Exp (EVM (Sstore (Literal (Dec n), ID x))) :: gen_store_vars tl
+  in
+  let args = fst (List.split num_args) in
+  let assigns = gen_store_vars num_args in
+  FunctionDef (set_storage, args, [], assigns)
+
+let get_hash_slot_def =
+  let slot = "$slot" in
+  let key = "$key" in
+  let data_slot = "$dataSlot" in
+  FunctionDef
+    ( get_hash_slot,
+      [ slot; key ],
+      [ data_slot ],
+      [
+        Exp (EVM (Mstore (Literal (Hex 0), ID key)));
+        Exp (EVM (Mstore (Literal (Hex 32), ID slot)));
+        Assign
+          ((data_slot, []), EVM (Keccak256 (Literal (Hex 0), Literal (Hex 64))));
+      ] )
+
+let selector_def =
+  let return_arg = "ret" in
+  FunctionDef
+    ( selector,
+      [],
+      [ return_arg ],
+      [
+        Assign
+          ( (return_arg, []),
+            EVM (Shr (Literal (Dec 224), EVM (Calldataload (Literal (Dec 0)))))
+          );
+      ] )
+
+let decode_as_uint_def =
+  let arg = "offset" in
+  let return_arg = "v" in
+  let pos = "pos" in
+  FunctionDef
+    ( decode_as_uint,
+      [ arg ],
+      [ return_arg ],
+      [
+        Let
+          ( (pos, []),
+            EVM (Add (Literal (Dec 4), EVM (Mul (ID arg, Literal (Hex 32))))) );
+        Assign ((return_arg, []), EVM (Calldataload (ID pos)));
+      ] )
+
+let decode_as_address_def =
+  let arg = "offset" in
+  let return_arg = "v" in
+  FunctionDef
+    ( decode_as_address,
+      [ arg ],
+      [ return_arg ],
+      [ Assign ((return_arg, []), FunctionCall (decode_as_uint, [ ID arg ])) ]
+    )
+
+let default_revert_def =
+  Default [ Exp (EVM (Revert (Literal (Dec 0), Literal (Dec 0)))) ]
+
+let default_function_defs =
+  [ selector_def; decode_as_uint_def; decode_as_address_def ]

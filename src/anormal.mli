@@ -1,26 +1,9 @@
-open Asttypes
-open Typedtree
-
-type bop = Add | Sub | Mul | Div
-
-type aval =
-  | Var of string
-  | IntV of int
-  | BoolV of bool
-  | StrV of string
-  | UnitV
-  | HashAdd
-  | HashFind
-  | Caller
-  | Bop of bop
-
-type letexp = LVal of aval | LApp of (aval * aval list)
-type resexp = RVal of aval | RTuple of aval list
-
-type pexp =
-  | Rexp of resexp
-  | Seq of letexp * pexp
-  | Letin of string list * letexp * pexp
-
-val normalize : expression -> (label * label list) list -> pexp
-val string_of_pexp : pexp -> string
+(*
+   The first argument is used to rewrite some variables.
+   For example, if the first argument includes `(x, [y; z])`,
+   then all occurence of `x` in the second argument change to `y` and `z`.
+   This renaming is necessary because OCaml allows the variables of tuple type
+   but Yul does not.
+*)
+val normalize :
+  (string * string list) list -> Normalized_ir_ast.aexp -> Normalized_ast.exp
