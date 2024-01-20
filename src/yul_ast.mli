@@ -19,7 +19,7 @@ and case = Case of (lit * block)
 and default = Default of block
 and idlist = id * id list
 and id = string
-and lit = Hex of int | Dec of int | Bool of bool | Str of strlit
+and lit = Hex of string | Dec of int | Bool of bool | Str of strlit
 and strlit = Strlit of string
 
 and dialect =
@@ -27,9 +27,12 @@ and dialect =
   | Sub of (exp * exp)
   | Mul of (exp * exp)
   | Div of (exp * exp)
+  | SDiv of (exp * exp)
   | Not of exp
   | Lt of (exp * exp)
   | Gt of (exp * exp)
+  | SLt of (exp * exp)
+  | SGt of (exp * exp)
   | Eq of (exp * exp)
   | And of (exp * exp)
   | Or of (exp * exp)
@@ -70,10 +73,14 @@ val get_hash_slot : id
 val selector : id
 val decode_as_uint : id
 val decode_as_address : id
-val safe_add : id
-val safe_sub : id
-val safe_mul : id
-val safe_div : id
+val uint_add : id
+val uint_sub : id
+val uint_mul : id
+val uint_div : id
+val sint_add : id
+val sint_sub : id
+val sint_mul : id
+val sint_div : id
 
 (* definitions of default functions *)
 val gen_return_uint_name : int -> id
@@ -87,12 +94,17 @@ val selector_def : statement
 val decode_as_uint_def : statement
 val decode_as_address_def : statement
 val default_revert_def : default
-val safe_add_def : statement
-val safe_sub_def : statement
-val safe_mul_def : statement
-val safe_div_def : statement
+val uint_add_def : statement
+val uint_sub_def : statement
+val uint_mul_def : statement
+val uint_div_def : statement
+val sint_add_def : statement
+val sint_sub_def : statement
+val sint_mul_def : statement
+val sint_div_def : statement
 (* val default_function_defs : block *)
 
+val hex_of_int : int -> lit
 val get_default_function_defs : unit -> block
 val update_default_function_defs : statement -> unit
 val reset_default_function_defs : unit -> unit

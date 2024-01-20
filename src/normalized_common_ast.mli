@@ -1,4 +1,4 @@
-type bop = Add | Sub | Mul | Div
+type bop = UAdd | USub | UMul | UDiv | SAdd | SSub | SMul | SDiv
 
 type value =
   | Var of string

@@ -4,12 +4,12 @@ module SimpleHash : sig
   type storage
   type mut_storage
 
-  val set : address * int -> storage -> mut_storage -> unit * storage
-  val get : address -> storage -> mut_storage -> int * storage
-  val set_caller : int -> storage -> mut_storage -> unit * storage
+  val set : address * uint -> storage -> mut_storage -> unit * storage
+  val get : address -> storage -> mut_storage -> uint * storage
+  val set_caller : uint -> storage -> mut_storage -> unit * storage
 end = struct
   type storage = unit
-  type mut_storage = (address, int) Hashtbl.t
+  type mut_storage = (address, uint) Hashtbl.t
 
   let set (x, y) () h =
     Hashtbl.replace h x y;

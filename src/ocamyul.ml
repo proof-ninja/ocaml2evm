@@ -49,11 +49,12 @@ let abi_input_of_typ typ =
   let abi_of_constr = function
     | Ttyp_constr (Path.Pident s, _, _) ->
         let s = Ident.name s in
-        if s = "int" then [ { input_name = ""; input_type = Uint256 } ]
-        else if s = "unit" then []
+        if s = "unit" then [] else raise Not_implemented
+    | Ttyp_constr (Path.Pdot (_, s), _, _) ->
+        if s = "uint" then [ { input_name = ""; input_type = Uint256 } ]
+        else if s = "sint" then [ { input_name = ""; input_type = Int256 } ]
+        else if s = "address" then [ { input_name = ""; input_type = Address } ]
         else raise Not_implemented
-    | Ttyp_constr (Path.Pdot (_, "address"), _, _) ->
-        [ { input_name = ""; input_type = Address } ]
     | _ -> raise Not_implemented
   in
   match typ with
@@ -68,11 +69,13 @@ let abi_output_of_typ typ =
   let abi_of_constr = function
     | Ttyp_constr (Path.Pident s, _, _) ->
         let s = Ident.name s in
-        if s = "int" then [ { output_name = ""; output_type = Uint256 } ]
-        else if s = "unit" then []
+        if s = "unit" then [] else raise Not_implemented
+    | Ttyp_constr (Path.Pdot (_, s), _, _) ->
+        if s = "uint" then [ { output_name = ""; output_type = Uint256 } ]
+        else if s = "sint" then [ { output_name = ""; output_type = Int256 } ]
+        else if s = "address" then
+          [ { output_name = ""; output_type = Address } ]
         else raise Not_implemented
-    | Ttyp_constr (Path.Pdot (_, "address"), _, _) ->
-        [ { output_name = ""; output_type = Address } ]
     | _ -> raise Not_implemented
   in
   match typ with
@@ -86,14 +89,19 @@ let abi_output_of_typ typ =
 (* the result of applying keccak256 to a function signature *)
 let keccak_256_for_abi func_sig =
   let open Digestif in
+  (* Hex
+     (int_of_string
+        ("0x"
+        ^ String.sub
+            (KECCAK_256.to_hex
+               (KECCAK_256.get
+                  (KECCAK_256.feed_string KECCAK_256.empty func_sig)))
+            0 8)) *)
   Hex
-    (int_of_string
-       ("0x"
-       ^ String.sub
-           (KECCAK_256.to_hex
-              (KECCAK_256.get
-                 (KECCAK_256.feed_string KECCAK_256.empty func_sig)))
-           0 8))
+    (String.sub
+       (KECCAK_256.to_hex
+          (KECCAK_256.get (KECCAK_256.feed_string KECCAK_256.empty func_sig)))
+       0 8)
 
 (* the type of function to function_signature type *)
 let uncurry_sig t =
@@ -159,6 +167,7 @@ let return_func_of_dispacther { abi_outputs = outputs; _ } =
 let params_of_external_function { abi_inputs = inputs; _ } =
   let decoder = function
     | Uint256 -> decode_as_uint
+    | Int256 -> decode_as_uint
     | Address -> decode_as_address
   in
   let rec aux n = function
@@ -197,7 +206,7 @@ let gen_dispacther ~func_name ~storage_num ~mut_storage_num ~is_mut_arg ~abi =
         List.init storage_num (fun _ -> Utils.fresh_var ()),
         if is_mut_arg then
           List.init mut_storage_num (fun x ->
-              Literal (Hex (x + storage_num + 1)))
+              Literal (Dec (x + storage_num + 1)))
         else [] )
     in
     (* If storage is ``empty'' (unit type), then

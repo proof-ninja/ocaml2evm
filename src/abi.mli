@@ -9,7 +9,7 @@ type abi = {
 and input = { input_name : string; input_type : param_type }
 and output = { output_name : string; output_type : param_type }
 and abi_type = Func
-and param_type = Uint256 | Address
+and param_type = Uint256 | Int256 | Address
 and state_mutability = Pure | View | Nonpayable | Payable
 
 val signature_of_function : abi -> string

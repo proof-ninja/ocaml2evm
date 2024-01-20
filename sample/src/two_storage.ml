@@ -1,18 +1,20 @@
+open OCamYul.Primitives
+
 module TwoStorage : sig
   type storage
 
-  val set : int * int -> storage -> unit * storage
-  val set_fst : int -> storage -> unit * storage
-  val set_snd : int -> storage -> unit * storage
-  val get : unit -> storage -> (int * int) * storage
-  val get_fst : unit -> storage -> int * storage
-  val get_snd : unit -> storage -> int * storage
+  val set : uint * uint -> storage -> unit * storage
+  val set_fst : uint -> storage -> unit * storage
+  val set_snd : uint -> storage -> unit * storage
+  val get : unit -> storage -> (uint * uint) * storage
+  val get_fst : unit -> storage -> uint * storage
+  val get_snd : unit -> storage -> uint * storage
   val swap : unit -> storage -> unit * storage
-  val total : unit -> storage -> int * storage
-  val set_fst_snd : int * int -> storage -> unit * storage
-  val get_fst_snd : unit -> storage -> (int * int) * storage
+  val total : unit -> storage -> uint * storage
+  val set_fst_snd : uint * uint -> storage -> unit * storage
+  val get_fst_snd : unit -> storage -> (uint * uint) * storage
 end = struct
-  type storage = int * int
+  type storage = uint * uint
 
   let set (x, y) (_, _) = ((), (x, y))
   let set_fst x (_, s2) = ((), (x, s2))
@@ -23,7 +25,7 @@ end = struct
   let swap () (s1, s2) = ((), (s2, s1))
 
   let total () (s1, s2) =
-    let n = s1 + s2 in
+    let n = s1 +^ s2 in
     (n, (s1, s2))
 
   let set_fst_snd (x, y) s =

@@ -43,6 +43,12 @@ describe('SimpleStorage', async () => {
     assert.equal(101, v);
   });
 
+  it('decrement value', async () => {
+    await contract.methods.decr().send({ from: from });
+    const v = await contract.methods.get().call();
+    assert.equal(99, v);
+  });
+
   it('twice arg', async () => {
     const v = await contract.methods.twice(300).call();
     assert.equal(600, v);
@@ -55,8 +61,8 @@ describe('SimpleStorage', async () => {
 
   it('add revert', async () => {
     try {
-      const v = await contract.methods.add(web3.utils.toBigInt('115792089237316195423570985008687907853269984665640564039457584007913129639935'), 8).call();
-      assert.equal(web3.utils.toBigInt('115792089237316195423570985008687907853269984665640564039457584007913129639943'), v);
+      const v = await contract.methods.add(web3.utils.toBigInt('57896044618658097711785492504343953926634992332820282019728792003956564819967'), 8).call();
+      assert.equal(web3.utils.toBigInt('57896044618658097711785492504343953926634992332820282019728792003956564819975'), v);
     } catch (e) {
       assert.equal("ContractExecutionError", e.name);
       assert.equal("CallError", e.innerError.name);
@@ -70,8 +76,8 @@ describe('SimpleStorage', async () => {
 
   it('sub revert', async () => {
     try {
-      const v = await contract.methods.sub(5, 8).call();
-      assert.equal(-3, v);
+      const v = await contract.methods.sub(web3.utils.toBigInt('-57896044618658097711785492504343953926634992332820282019728792003956564819967'), 2).call();
+      assert.equal(web3.utils.toBigInt('-57896044618658097711785492504343953926634992332820282019728792003956564819969'), v);
     } catch (e) {
       assert.equal("ContractExecutionError", e.name);
       assert.equal("CallError", e.innerError.name);
@@ -79,8 +85,8 @@ describe('SimpleStorage', async () => {
   });
 
   it('mul numeral', async () => {
-    const v = await contract.methods.mul(5, 8).call();
-    assert.equal(40, v);
+    const v = await contract.methods.mul(-5, 8).call();
+    assert.equal(-40, v);
   });
 
   it('mul revert', async () => {
@@ -94,8 +100,8 @@ describe('SimpleStorage', async () => {
   });
 
   it('div numeral', async () => {
-    const v = await contract.methods.div(8, 5).call();
-    assert.equal(1, v);
+    const v = await contract.methods.div(-18, 3).call();
+    assert.equal(-6, v);
   });
 
   it('div revert', async () => {

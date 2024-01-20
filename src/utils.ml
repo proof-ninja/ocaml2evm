@@ -21,6 +21,9 @@ let count_vars_in_type t =
         | Ttuple tl' -> List.fold_left (fun x y -> x @ count_vars_aux y) [] tl'
         | Tconstr (Path.Pident p, [], _) ->
             if Ident.name p = "unit" then [] else [ fresh_var () ]
+        | Tconstr (Path.Pdot (_, s), _, _) ->
+            if s = "uint" || s = "sint" || s = "address" then [ fresh_var () ]
+            else assert false
         | Tvar _ -> [ fresh_var () ]
         | _ -> assert false
       in

@@ -4,7 +4,7 @@ open Normalized_ast
 
 let aval_to_yul = function
   | Var s -> ID s
-  | IntV n -> Literal (Dec n)
+  | IntV n -> Literal (hex_of_int n)
   | BoolV b -> if b then Literal (Dec 1) else Literal (Dec 0)
   | StrV s -> Literal (Str (Strlit s))
   | _ -> assert false
@@ -27,19 +27,19 @@ let letexp_to_yul = function
   | LApp (Bop b, [ v1; v2 ]) -> (
       let v1 = aval_to_yul v1 in
       let v2 = aval_to_yul v2 in
+      let gen_bop_call f name =
+        update_default_function_defs f;
+        FunctionCall (name, [ v1; v2 ])
+      in
       match b with
-      | Add ->
-          update_default_function_defs safe_add_def;
-          FunctionCall (safe_add, [ v1; v2 ])
-      | Sub ->
-          update_default_function_defs safe_sub_def;
-          FunctionCall (safe_sub, [ v1; v2 ])
-      | Mul ->
-          update_default_function_defs safe_mul_def;
-          FunctionCall (safe_mul, [ v1; v2 ])
-      | Div ->
-          update_default_function_defs safe_div_def;
-          FunctionCall (safe_div, [ v1; v2 ]))
+      | UAdd -> gen_bop_call uint_add_def uint_add
+      | USub -> gen_bop_call uint_sub_def uint_sub
+      | UMul -> gen_bop_call uint_mul_def uint_mul
+      | UDiv -> gen_bop_call uint_div_def uint_div
+      | SAdd -> gen_bop_call sint_add_def sint_add
+      | SSub -> gen_bop_call sint_sub_def sint_sub
+      | SMul -> gen_bop_call sint_mul_def sint_mul
+      | SDiv -> gen_bop_call sint_div_def sint_div)
   | LApp (HashReplace, [ h; x; y ]) ->
       EVM
         (Sstore

@@ -1,4 +1,4 @@
-type bop = Add | Sub | Mul | Div
+type bop = UAdd | USub | UMul | UDiv | SAdd | SSub | SMul | SDiv
 
 type value =
   | Var of string
@@ -11,7 +11,15 @@ type value =
   | Caller
   | Bop of bop
 
-let string_of_bop = function Add -> "+" | Sub -> "-" | Mul -> "*" | Div -> "/"
+let string_of_bop = function
+  | UAdd -> "+^"
+  | USub -> "-^"
+  | UMul -> "*^"
+  | UDiv -> "/^"
+  | SAdd -> "+"
+  | SSub -> "-"
+  | SMul -> "*"
+  | SDiv -> "/"
 
 let string_of_value = function
   | Var s -> s
@@ -19,7 +27,6 @@ let string_of_value = function
   | BoolV b -> string_of_bool b
   | StrV s -> s
   | UnitV -> "()"
-  (* | HashAdd -> "Hashtbl.add" *)
   | HashReplace -> "Hashtbl.replace"
   | HashFind -> "Hashtbl.find"
   | Caller -> "caller"

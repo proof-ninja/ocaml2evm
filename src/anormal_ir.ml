@@ -9,10 +9,14 @@ let const_to_aval = function
   | _ -> assert false
 
 let get_bop s =
-  if s = "+" then Add
-  else if s = "-" then Sub
-  else if s = "*" then Mul
-  else if s = "/" then Div
+  if s = "+^" then UAdd
+  else if s = "-^" then USub
+  else if s = "*^" then UMul
+  else if s = "/^" then UDiv
+  else if s = "+" then SAdd
+  else if s = "-" then SSub
+  else if s = "*" then SMul
+  else if s = "/" then SDiv
   else assert false
 
 let pdot_to_aval p s =
@@ -25,10 +29,10 @@ let pdot_to_aval p s =
       else assert false
   | Path.Pdot (Path.Pident id, "Primitives") ->
       if Ident.name id = "OCamYul" then
-        if s = "caller" then Caller else assert false
+        if s = "caller" then Caller else Bop (get_bop s)
       else assert false
-  | Path.Pident id ->
-      if Ident.name id = "Stdlib" then Bop (get_bop s) else assert false
+  (* | Path.Pident id ->
+      if Ident.name id = "Stdlib" then Bop (get_bop s) else assert false *)
   | _ -> assert false
 
 let rec normalize_aux { exp_desc = e; exp_type = t; _ } k =
@@ -36,11 +40,23 @@ let rec normalize_aux { exp_desc = e; exp_type = t; _ } k =
   | Texp_ident (Pident s, _, _) -> (AVal (Var (Ident.unique_name s)), t) |> k
   | Texp_ident (Pdot (p, s), _, _) -> (AVal (pdot_to_aval p s), t) |> k
   | Texp_constant x -> (AVal (const_to_aval x), t) |> k
-  | Texp_construct (_, { Types.cstr_name = s; _ }, _) ->
+  | Texp_construct (_, { Types.cstr_name = s; _ }, []) ->
       ( AVal
           (if s = "true" then BoolV true
            else if s = "false" then BoolV false
            else if s = "()" then UnitV
+           else assert false),
+        t )
+      |> k
+  | Texp_construct (_, { Types.cstr_name = s; _ }, [ { exp_desc = e; _ } ]) ->
+      let n =
+        match e with Texp_constant (Const_int n) -> n | _ -> assert false
+      in
+      ( AVal
+          (if s = "UInt" then (
+             assert (n >= 0);
+             IntV n)
+           else if s = "SInt" then IntV n
            else assert false),
         t )
       |> k

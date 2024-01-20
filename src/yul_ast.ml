@@ -19,7 +19,14 @@ and case = Case of (lit * block)
 and default = Default of block
 and idlist = id * id list
 and id = string
-and lit = Hex of int | Dec of int | Bool of bool | Str of strlit
+
+and lit =
+  (* Hex of int *)
+  | Hex of string
+  | Dec of int
+  | Bool of bool
+  | Str of strlit
+
 and strlit = Strlit of string
 
 and dialect =
@@ -27,9 +34,12 @@ and dialect =
   | Sub of (exp * exp)
   | Mul of (exp * exp)
   | Div of (exp * exp)
+  | SDiv of (exp * exp)
   | Not of exp
   | Lt of (exp * exp)
   | Gt of (exp * exp)
+  | SLt of (exp * exp)
+  | SGt of (exp * exp)
   | Eq of (exp * exp)
   | And of (exp * exp)
   | Or of (exp * exp)
@@ -52,7 +62,21 @@ and dialect =
 and obj = Object of (strlit * code * obj option)
 and code = Code of block
 
-let hex_of_int n = Printf.sprintf "0x%x" n
+let hex_of_int n =
+  (* "0x" ^ *)
+  Hex
+    (let hex = Printf.sprintf "%x" n in
+     if n >= 0 then hex
+     else
+       let h =
+         String.get hex 0 |> Char.code |> ( + ) 8
+         |> (fun x ->
+              let diff = x - Char.code '9' - 1 in
+              if diff >= 0 then Char.code 'a' |> ( + ) diff |> Char.chr
+              else Char.chr x)
+         |> Char.escaped
+       in
+       String.make 48 'f' ^ h ^ String.sub hex 1 (String.length hex - 1))
 
 let string_of_idlist (x, xs) f =
   f x ^ List.fold_left (fun x y -> x ^ ", " ^ f y) "" xs
@@ -112,7 +136,7 @@ and string_of_yul_default n = function
   | Default b -> "default " ^ string_of_yul_block n b
 
 and string_of_yul_lit = function
-  | Hex x -> hex_of_int x
+  | Hex x -> (* hex_of_int x *) "0x" ^ x
   | Dec x -> string_of_int x
   | Bool x -> string_of_bool x
   | Str x -> string_of_strlit x
@@ -124,9 +148,12 @@ and string_of_yul_dialect = function
   | Sub x -> "sub" ^ string_of_dialect_arg_2 x
   | Mul x -> "mul" ^ string_of_dialect_arg_2 x
   | Div x -> "div" ^ string_of_dialect_arg_2 x
+  | SDiv x -> "sdiv" ^ string_of_dialect_arg_2 x
   | Not x -> "not" ^ string_of_dialect_arg_1 x
   | Lt x -> "lt" ^ string_of_dialect_arg_2 x
   | Gt x -> "gt" ^ string_of_dialect_arg_2 x
+  | SLt x -> "slt" ^ string_of_dialect_arg_2 x
+  | SGt x -> "sgt" ^ string_of_dialect_arg_2 x
   | Eq x -> "eq" ^ string_of_dialect_arg_2 x
   | And x -> "and" ^ string_of_dialect_arg_2 x
   | Or x -> "or" ^ string_of_dialect_arg_2 x
@@ -203,10 +230,14 @@ let get_hash_slot = "getHashSlot"
 let selector = "selector"
 let decode_as_uint = "decodeAsUint"
 let decode_as_address = "decodeAsAddress"
-let safe_add = "safeAdd"
-let safe_sub = "safeSub"
-let safe_mul = "safeMul"
-let safe_div = "safeDiv"
+let uint_add = "uintAdd"
+let uint_sub = "uintSub"
+let uint_mul = "uintMul"
+let uint_div = "uintDiv"
+let sint_add = "sintAdd"
+let sint_sub = "sintSub"
+let sint_mul = "sintMul"
+let sint_div = "sintDiv"
 
 (* definitions of default functions *)
 let gen_return_uint_name n = "returnUint_" ^ string_of_int n
@@ -226,7 +257,7 @@ let return_uint_def n =
   let args = fst (List.split num_args) in
   let assigns =
     gen_store_vars num_args
-    @ [ Exp (EVM (Return (Literal (Dec 0), Literal (Hex (32 * n))))) ]
+    @ [ Exp (EVM (Return (Literal (Dec 0), Literal (hex_of_int (32 * n))))) ]
   in
   FunctionDef (gen_return_uint_name n, args, [], assigns)
 
@@ -237,7 +268,7 @@ let return_true_def =
       [],
       [
         Exp (EVM (Mstore (Literal (Dec 0), Literal (Dec 1))));
-        Exp (EVM (Return (Literal (Dec 0), Literal (Hex 32))));
+        Exp (EVM (Return (Literal (Dec 0), Literal (hex_of_int 32))));
       ] )
 
 let return_unit_def =
@@ -245,7 +276,7 @@ let return_unit_def =
     ( return_unit,
       [],
       [],
-      [ Exp (EVM (Return (Literal (Dec 0), Literal (Hex 0)))) ] )
+      [ Exp (EVM (Return (Literal (Dec 0), Literal (hex_of_int 0)))) ] )
 
 let get_storage_def n =
   let rec gen_ret_vars n =
@@ -288,10 +319,11 @@ let get_hash_slot_def =
       [ slot; key ],
       [ data_slot ],
       [
-        Exp (EVM (Mstore (Literal (Hex 0), ID key)));
-        Exp (EVM (Mstore (Literal (Hex 32), ID slot)));
+        Exp (EVM (Mstore (Literal (hex_of_int 0), ID key)));
+        Exp (EVM (Mstore (Literal (hex_of_int 32), ID slot)));
         Assign
-          ((data_slot, []), EVM (Keccak256 (Literal (Hex 0), Literal (Hex 64))));
+          ( (data_slot, []),
+            EVM (Keccak256 (Literal (hex_of_int 0), Literal (hex_of_int 64))) );
       ] )
 
 let selector_def =
@@ -318,7 +350,9 @@ let decode_as_uint_def =
       [
         Let
           ( (pos, []),
-            EVM (Add (Literal (Dec 4), EVM (Mul (ID arg, Literal (Hex 32))))) );
+            EVM
+              (Add (Literal (Dec 4), EVM (Mul (ID arg, Literal (hex_of_int 32)))))
+          );
         Assign ((return_arg, []), EVM (Calldataload (ID pos)));
       ] )
 
@@ -335,11 +369,11 @@ let decode_as_address_def =
 let default_revert_def =
   Default [ Exp (EVM (Revert (Literal (Dec 0), Literal (Dec 0)))) ]
 
-let safe_add_def =
+let uint_add_def =
   let arg_x, arg_y = ("$x", "$y") in
   let return_arg = "$r" in
   FunctionDef
-    ( safe_add,
+    ( uint_add,
       [ arg_x; arg_y ],
       [ return_arg ],
       [
@@ -349,14 +383,14 @@ let safe_add_def =
               (Or
                  ( EVM (Gt (ID arg_x, ID return_arg)),
                    EVM (Gt (ID arg_y, ID return_arg)) )),
-            [ Exp (EVM (Revert (Literal (Dec 0), Literal (Dec 0)))) ] );
+            [ Exp (EVM (Revert (Literal (Dec 0), Literal (Dec 3)))) ] );
       ] )
 
-let safe_sub_def =
+let uint_sub_def =
   let arg_x, arg_y = ("$x", "$y") in
   let return_arg = "$r" in
   FunctionDef
-    ( safe_sub,
+    ( uint_sub,
       [ arg_x; arg_y ],
       [ return_arg ],
       [
@@ -366,11 +400,11 @@ let safe_sub_def =
             [ Exp (EVM (Revert (Literal (Dec 0), Literal (Dec 0)))) ] );
       ] )
 
-let safe_mul_def =
+let uint_mul_def =
   let arg_x, arg_y = ("$x", "$y") in
   let return_arg = "$r" in
   FunctionDef
-    ( safe_mul,
+    ( uint_mul,
       [ arg_x; arg_y ],
       [ return_arg ],
       [
@@ -387,11 +421,11 @@ let safe_mul_def =
             [ Exp (EVM (Revert (Literal (Dec 0), Literal (Dec 0)))) ] );
       ] )
 
-let safe_div_def =
+let uint_div_def =
   let arg_x, arg_y = ("$x", "$y") in
   let return_arg = "$r" in
   FunctionDef
-    ( safe_div,
+    ( uint_div,
       [ arg_x; arg_y ],
       [ return_arg ],
       [
@@ -399,6 +433,111 @@ let safe_div_def =
           ( EVM (Iszero (ID arg_y)),
             [ Exp (EVM (Revert (Literal (Dec 0), Literal (Dec 0)))) ] );
         Assign ((return_arg, []), EVM (Div (ID arg_x, ID arg_y)));
+      ] )
+
+let sint_add_def =
+  let arg_x, arg_y = ("$x", "$y") in
+  let return_arg = "$r" in
+  FunctionDef
+    ( sint_add,
+      [ arg_x; arg_y ],
+      [ return_arg ],
+      [
+        Assign ((return_arg, []), EVM (Add (ID arg_x, ID arg_y)));
+        If
+          ( EVM
+              (Or
+                 ( EVM
+                     (And
+                        ( EVM (Iszero (EVM (SLt (ID arg_x, Literal (Dec 0))))),
+                          EVM (SLt (ID return_arg, ID arg_y)) )),
+                   EVM
+                     (And
+                        ( EVM (SLt (ID arg_x, Literal (Dec 0))),
+                          EVM (Iszero (EVM (SLt (ID return_arg, ID arg_y)))) ))
+                 )),
+            [ Exp (EVM (Revert (Literal (Dec 0), Literal (Dec 3)))) ] );
+      ] )
+
+let sint_sub_def =
+  let arg_x, arg_y = ("$x", "$y") in
+  let return_arg = "$r" in
+  FunctionDef
+    ( sint_sub,
+      [ arg_x; arg_y ],
+      [ return_arg ],
+      [
+        Assign ((return_arg, []), EVM (Sub (ID arg_x, ID arg_y)));
+        If
+          ( EVM
+              (Or
+                 ( EVM
+                     (And
+                        ( EVM (Iszero (EVM (SLt (ID arg_y, Literal (Dec 0))))),
+                          EVM (SGt (ID return_arg, ID arg_x)) )),
+                   EVM
+                     (And
+                        ( EVM (SLt (ID arg_y, Literal (Dec 0))),
+                          EVM (SLt (ID return_arg, ID arg_x)) )) )),
+            [ Exp (EVM (Revert (Literal (Dec 0), Literal (Dec 0)))) ] );
+      ] )
+
+let sint_mul_def =
+  let arg_x, arg_y = ("$x", "$y") in
+  let return_arg = "$r" in
+  FunctionDef
+    ( sint_mul,
+      [ arg_x; arg_y ],
+      [ return_arg ],
+      [
+        Assign ((return_arg, []), EVM (Mul (ID arg_x, ID arg_y)));
+        If
+          ( EVM
+              (And
+                 ( EVM (SLt (ID arg_x, Literal (Dec 0))),
+                   EVM
+                     (Eq
+                        ( ID arg_y,
+                          Literal
+                            (Hex
+                               "8000000000000000000000000000000000000000000000000000000000000000")
+                        )) )),
+            [ Exp (EVM (Revert (Literal (Dec 0), Literal (Dec 0)))) ] );
+        If
+          ( EVM
+              (Iszero
+                 (EVM
+                    (Or
+                       ( EVM (Iszero (ID arg_x)),
+                         EVM
+                           (Eq (ID arg_y, EVM (SDiv (ID return_arg, ID arg_x))))
+                       )))),
+            [ Exp (EVM (Revert (Literal (Dec 0), Literal (Dec 0)))) ] );
+      ] )
+
+let sint_div_def =
+  let arg_x, arg_y = ("$x", "$y") in
+  let return_arg = "$r" in
+  FunctionDef
+    ( sint_div,
+      [ arg_x; arg_y ],
+      [ return_arg ],
+      [
+        If
+          ( EVM
+              (And
+                 ( EVM
+                     (Eq
+                        ( ID arg_x,
+                          Literal
+                            (Hex
+                               "8000000000000000000000000000000000000000000000000000000000000000")
+                        )),
+                   EVM
+                     (Eq (ID arg_x, EVM (Sub (Literal (Dec 0), Literal (Dec 1)))))
+                 )),
+            [ Exp (EVM (Revert (Literal (Dec 0), Literal (Dec 0)))) ] );
+        Assign ((return_arg, []), EVM (SDiv (ID arg_x, ID arg_y)));
       ] )
 
 (* `default_function_defs` is mutable because
