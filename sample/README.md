@@ -18,3 +18,9 @@ Before compiling, you need to install `solc`.
 By `npm test`, test scripts run.
 
 Before testing, you need to run `npm install`.
+
+## Deploying Contracts
+
+`deploy_erc20.js` is a sample code for deploying contracts. 
+This script deploys the ABI and bytecode provided by `contracts/erc20.ml` using `.env` file,
+which is not committed because it has the information about a private key.

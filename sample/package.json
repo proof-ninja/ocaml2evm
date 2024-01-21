@@ -3,6 +3,7 @@
     "test": "mocha contract_test/"
   },
   "dependencies": {
+    "dotenv": "^16.3.2",
     "ganache": "^7.9.1",
     "mocha": "^10.2.0",
     "web3": "^4.2.2"
