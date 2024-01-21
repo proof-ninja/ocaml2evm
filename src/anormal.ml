@@ -21,50 +21,53 @@ let rename_avals rename l =
       | _ -> acc @ [ y ])
     [] l
 
-let rename_cexp rename e =
-  match e with
-  | AVal (Var id) -> (
-      match List.find_opt (fun (x, _) -> x = id) rename with
-      | Some (_, ids) -> ATuple (List.map (fun x -> Var x) ids)
-      | None -> AVal (Var id))
-  | AApp (f, args, t) -> AApp (f, rename_avals rename args, t)
-  | ATuple el -> ATuple (rename_avals rename el)
-  | _ -> e
+let application_mut mut = function
+  | Bop _ | HashFind | Caller -> Abi.stronger_mutability View mut
+  | _ -> Abi.stronger_mutability Nonpayable mut
 
-let rename_cexp_to_exp rename e =
+let rename_cexp rename e mut =
   match e with
   | AVal (Var id) -> (
       match List.find_opt (fun (x, _) -> x = id) rename with
-      | Some (_, ids) -> Rexp (RTuple (List.map (fun x -> Var x) ids))
-      | None -> Rexp (RVal (Var id)))
+      | Some (_, ids) -> (ATuple (List.map (fun x -> Var x) ids), mut)
+      | None -> (AVal (Var id), mut))
+  | AApp (f, args, t) ->
+      let mut = application_mut mut f in
+      (AApp (f, rename_avals rename args, t), mut)
+  | ATuple el -> (ATuple (rename_avals rename el), mut)
+  | _ -> (e, mut)
+
+let cexp_to_exp e =
+  match e with
   | AVal v -> Rexp (RVal v)
   | AApp (f, args, t) -> (
       match Utils.count_vars_in_type t with
       | Some vars ->
           Letin
             ( vars,
-              LApp (f, rename_avals rename args),
+              LApp (f, args),
               Rexp (RTuple (List.map (fun x -> Var x) vars)) )
       | None ->
           let res_var = Utils.fresh_var () in
-          Letin
-            ( [ res_var ],
-              LApp (f, rename_avals rename args),
-              Rexp (RVal (Var res_var)) ))
-  | ATuple el -> Rexp (RTuple (rename_avals rename el))
+          Letin ([ res_var ], LApp (f, args), Rexp (RVal (Var res_var))))
+  | ATuple el -> Rexp (RTuple el)
 
-let rec remove_tuple rename e =
+let rec remove_tuple rename e mut =
   match e with
-  | ACexp e' -> rename_cexp_to_exp rename e'
+  | ACexp e' ->
+      let e, mut = rename_cexp rename e' mut in
+      (cexp_to_exp e, mut)
   | ASeq (e1, e2) -> (
-      match rename_cexp rename e1 with
-      | AApp (f, args, _) -> Seq (LApp (f, args), remove_tuple rename e2)
+      match rename_cexp rename e1 mut with
+      | AApp (f, args, _), mut ->
+          let e, mut = remove_tuple rename e2 mut in
+          (Seq (LApp (f, args), e), mut)
       | _ -> assert false)
   | ALetin ((vars, new_rename), e1, e2) -> (
       let rename = new_rename @ rename in
       let vars = rename_ids rename vars in
-      let e1' = rename_cexp rename e1 in
-      let e2' = remove_tuple rename e2 in
+      let e1', mut = rename_cexp rename e1 mut in
+      let e2', mut = remove_tuple rename e2 mut in
       match e1' with
       | ATuple el ->
           let rec gen_tuple_let = function
@@ -72,8 +75,17 @@ let rec remove_tuple rename e =
             | x :: xs, y :: ys -> Letin ([ x ], LVal y, gen_tuple_let (xs, ys))
             | _ -> assert false
           in
-          gen_tuple_let (vars, el)
-      | AVal arg -> Letin (vars, LVal arg, e2')
-      | AApp (f, args, _) -> Letin (vars, LApp (f, args), e2'))
+          (gen_tuple_let (vars, el), mut)
+      | AVal arg -> (Letin (vars, LVal arg, e2'), mut)
+      | AApp (f, args, _) -> (Letin (vars, LApp (f, args), e2'), mut))
 
-let normalize = remove_tuple
+let normalize { name = func_name; arg_pats = args; body; mutability = mut } =
+  let renames, args =
+    List.fold_left
+      (fun (acc_fst, acc_snd) x ->
+        let rename, arg = Utils.flatten_tuple_pat x in
+        (acc_fst @ rename, acc_snd @ arg))
+      ([], []) args
+  in
+  let body, mut = remove_tuple renames body mut in
+  { name = func_name; arg_ids = args; body; mutability = mut }

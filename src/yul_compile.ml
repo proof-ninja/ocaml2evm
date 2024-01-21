@@ -80,3 +80,9 @@ let rec translate_body_aux e acc =
 let translate_function_body e =
   let statements, return_vars = translate_body_aux e [] in
   (List.rev statements, List.rev return_vars)
+
+let translate_function
+    { name = func_name; arg_ids = args; body; mutability = mut } =
+  let statements, return_vars = translate_function_body body in
+  ( FunctionDef (Ident.unique_name func_name, args, return_vars, statements),
+    (Ident.name func_name, mut) )

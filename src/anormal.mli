@@ -5,5 +5,7 @@
    This renaming is necessary because OCaml allows the variables of tuple type
    but Yul does not.
 *)
-val normalize :
-  (string * string list) list -> Normalized_ir_ast.aexp -> Normalized_ast.exp
+(* val normalize :
+   (string * string list) list -> Normalized_ir_ast.aexp -> Normalized_ast.exp *)
+
+val normalize : Normalized_ir_ast.adecl -> Normalized_ast.decl

@@ -10,6 +10,13 @@ type aexp =
   | ASeq of acexp * aexp
   | ALetin of (string list * (string * string list) list) * acexp * aexp
 
+type adecl = {
+  name : Ident.t;
+  arg_pats : Typedtree.pattern list;
+  body : aexp;
+  mutability : Abi.state_mutability;
+}
+
 let string_of_acexp = function
   | AVal v -> string_of_value v
   | AApp (f, args, _) ->
@@ -27,3 +34,8 @@ let rec string_of_aexp = function
       "let "
       ^ List.fold_left (fun acc x -> acc ^ ", " ^ x) "" xs
       ^ " = " ^ string_of_acexp e1 ^ " in " ^ string_of_aexp e2
+
+let string_of_adecl { name = id; body = e; mutability = mut; _ } =
+  "let-"
+  ^ Abi.string_of_mutability mut
+  ^ " " ^ Ident.unique_name id ^ " [args] = " ^ string_of_aexp e

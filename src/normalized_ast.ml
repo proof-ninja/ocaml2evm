@@ -8,6 +8,13 @@ type exp =
   | Seq of letexp * exp
   | Letin of string list * letexp * exp
 
+type decl = {
+  name : Ident.t;
+  arg_ids : string list;
+  body : exp;
+  mutability : Abi.state_mutability;
+}
+
 let string_of_letexp = function
   | LVal v -> string_of_value v
   | LApp (f, xs) ->
@@ -29,3 +36,12 @@ let rec string_of_exp e =
       "let"
       ^ List.fold_left (fun acc x -> acc ^ ", " ^ x) "" vars
       ^ " = " ^ string_of_letexp e1 ^ " in " ^ string_of_exp e2
+
+let string_of_decl
+    { name = func_name; arg_ids = args; body = e; mutability = mut } =
+  "let-"
+  ^ Abi.string_of_mutability mut
+  ^ " "
+  ^ Ident.unique_name func_name
+  ^ List.fold_left (fun acc x -> acc ^ " " ^ x) "" args
+  ^ " = " ^ string_of_exp e

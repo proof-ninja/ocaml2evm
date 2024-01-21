@@ -12,6 +12,11 @@ and abi_type = Func
 and param_type = Uint256 | Int256 | Address
 and state_mutability = Pure | View | Nonpayable | Payable
 
+let stronger_mutability mut1 mut2 =
+  match (mut1, mut2) with
+  | View, Pure | Nonpayable, Pure | Nonpayable, View | Payable, _ -> mut1
+  | _, _ -> mut2
+
 let string_of_abi_type = function Func -> "function"
 
 let string_of_param_type = function

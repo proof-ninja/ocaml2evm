@@ -5,5 +5,8 @@
    The former is the result of translation.
    The latter is the variables which has the return values of the function call.
 *)
-val translate_function_body :
-  Normalized_ast.exp -> Yul_ast.block * Yul_ast.id list
+(* val translate_function_body :
+   Normalized_ast.exp -> Yul_ast.block * Yul_ast.id list *)
+
+val translate_function :
+  Normalized_ast.decl -> Yul_ast.statement * (string * Abi.state_mutability)

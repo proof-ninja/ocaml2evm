@@ -89,14 +89,6 @@ let abi_output_of_typ typ =
 (* the result of applying keccak256 to a function signature *)
 let keccak_256_for_abi func_sig =
   let open Digestif in
-  (* Hex
-     (int_of_string
-        ("0x"
-        ^ String.sub
-            (KECCAK_256.to_hex
-               (KECCAK_256.get
-                  (KECCAK_256.feed_string KECCAK_256.empty func_sig)))
-            0 8)) *)
   Hex
     (String.sub
        (KECCAK_256.to_hex
@@ -148,15 +140,21 @@ let check_valid_signature storage_name mut_storage_name
   && Ident.same storage_name s1 && Ident.same storage_name s2
 
 (* function signature to ABI *)
-let abi_of_signature func_name { arg_type = arg; return_type = ret; _ } =
+let abi_of_signature func_name { arg_type = arg; return_type = ret; _ } mut_maps
+    =
   let inputs = abi_input_of_typ arg in
   let outputs = abi_output_of_typ ret in
+  let mut =
+    match List.find_opt (fun (y, _) -> func_name = y) mut_maps with
+    | Some (_, mut) -> mut
+    | None -> Nonpayable
+  in
   {
     abi_name = func_name;
     abi_type = Func;
     abi_inputs = inputs;
     abi_outputs = outputs;
-    abi_mutability = Nonpayable;
+    abi_mutability = mut;
   }
 
 let return_func_of_dispacther { abi_outputs = outputs; _ } =
@@ -177,7 +175,8 @@ let params_of_external_function { abi_inputs = inputs; _ } =
   in
   aux 0 inputs
 
-let gen_dispacther ~func_name ~storage_num ~mut_storage_num ~is_mut_arg ~abi =
+let gen_dispacther ~func_name ~storage_num ~mut_storage_num ~is_set_storage
+    ~is_mut_arg ~abi =
   (*
     If a function name is different from the name of abi, then return None.
     This process is needed because `abi.abi_name` is always different from 
@@ -219,10 +218,12 @@ let gen_dispacther ~func_name ~storage_num ~mut_storage_num ~is_mut_arg ~abi =
               (Let
                  ( (List.hd before_storage, List.tl before_storage),
                    FunctionCall (get_storage, []) )),
-            Some
-              (Exp
-                 (FunctionCall
-                    (set_storage, List.map (fun x -> ID x) after_storage))) )
+            if is_set_storage then
+              Some
+                (Exp
+                   (FunctionCall
+                      (set_storage, List.map (fun x -> ID x) after_storage)))
+            else None )
       | _, _ -> assert false
     in
     let result_vals = returned_vals @ after_storage in
@@ -263,7 +264,8 @@ let gen_dispacther ~func_name ~storage_num ~mut_storage_num ~is_mut_arg ~abi =
     Some (Case (keccak_256_for_abi (signature_of_function abi), case_result))
 
 (* generating ABI, default functions, and dispatcher functions *)
-let gen_triple_abi_dispatcher_defs { sig_items = sigs; _ } =
+let gen_triple_abi_dispatcher_defs { sig_items = sigs; _ } mut_maps
+    set_storage_flags =
   let types, vals = split_module_sig sigs in
   let storage_name, mut_storage_name =
     match types with
@@ -275,10 +277,18 @@ let gen_triple_abi_dispatcher_defs { sig_items = sigs; _ } =
     | { val_id = name; val_desc = { ctyp_desc = core_desc; _ }; _ } ->
         let func_sig = uncurry_sig core_desc in
         if check_valid_signature storage_name mut_storage_name func_sig then
-          let abi = abi_of_signature (Ident.name name) func_sig in
+          let abi = abi_of_signature (Ident.name name) func_sig mut_maps in
           ( abi,
             return_uint_def (List.length abi.abi_outputs),
             gen_dispacther
+              ~is_set_storage:
+                (match
+                   List.find_opt
+                     (fun (x, _) -> Ident.name x = Ident.name name)
+                     set_storage_flags
+                 with
+                | Some (_, b) -> b
+                | None -> false)
               ~is_mut_arg:
                 (match func_sig.mut_storage_id with
                 | Some _ -> true
@@ -293,32 +303,15 @@ let gen_triple_abi_dispatcher_defs { sig_items = sigs; _ } =
       (abi :: abis, dispatcher :: dispatchers))
     ([], []) vals
 
-(* translate the body of the function *)
-let translate_function_to_yul func_name e =
-  let rec expand_function e =
-    match e with
-    | {
-     exp_desc =
-       Texp_function { cases = { c_lhs = arg_pat; c_rhs = body; _ } :: []; _ };
-     _;
-    } ->
-        let first_rename, first_args = Utils.flatten_tuple_pat arg_pat in
-        let rename, args, body = expand_function body in
-        (first_rename @ rename, first_args @ args, body)
-    | _ -> ([], [], e)
-  in
-  let rename, args, body = expand_function e in
-  let statements, return_vars =
-    Anormal_ir.normalize body |> Anormal.normalize rename
-    |> Yul_compile.translate_function_body
-  in
-  FunctionDef (func_name, args, return_vars, statements)
-
 (* translate external functions using `translate_function_to_yul` *)
 let translate_external_func = function
-  | { vb_pat = { pat_desc = Tpat_var (func_name, _); _ }; vb_expr = e; _ } :: []
-    ->
-      translate_function_to_yul (Ident.unique_name func_name) e
+  | binding :: [] ->
+      let e = Anormal_ir.normalize binding in
+      let set_storage_flag =
+        match e.mutability with Pure | View -> false | _ -> true
+      in
+      ( e |> Anormal.normalize |> Yul_compile.translate_function,
+        (e.name, set_storage_flag) )
   | _ -> assert false
 
 (* getting `Case` sentences of the dispather *)
@@ -466,13 +459,18 @@ let backend source_file Typedtree.{ structure; _ } =
             };
           ] ->
             let contract_name = Ident.name contract_name in
-            let abis, cases = gen_triple_abi_dispatcher_defs sigs in
-            (* getting val expression (types are not yet implemented) *)
+            (* getting val expression *)
             let types, exps = split_module_str items in
+            (* getting function declarations and dispatcher cases *)
+            let funcs_maps, set_storage_flags =
+              List.map translate_external_func exps |> List.split
+            in
+            let funcs, mut_maps = List.split funcs_maps in
+            let abis, cases =
+              gen_triple_abi_dispatcher_defs sigs mut_maps set_storage_flags
+            in
             (* getting the number of storage *)
             let storage_num, mut_storage_num = get_storage_num types in
-            (* getting function declarations and dispatcher cases *)
-            let funcs = List.map translate_external_func exps in
             let cases =
               List.map
                 (fun (case :
@@ -508,6 +506,7 @@ let backend source_file Typedtree.{ structure; _ } =
                            ((dispatcher :: funcs) @ get_default_function_defs ()),
                          None )) )
             in
+            (* print_endline (string_of_yul yul_code) *)
             let result_json = json_of_yul abis yul_code contract_name in
             write_json_contract source_file contract_name result_json
         | _ -> raise Not_implemented

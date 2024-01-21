@@ -73,3 +73,18 @@ let flatten_tuple_pat p =
     | _ -> assert false
   in
   flatten_tuple_pat_aux (p.pat_desc, p.pat_type)
+
+let same_pat_exp p e =
+  let rec aux ps es =
+    match (ps, es) with
+    | { pat_desc = p; _ } :: p_rest, { exp_desc = e; _ } :: e_rest ->
+        (match (p, e) with
+        | Tpat_var (p_id, _), Texp_ident (Path.Pident e_id, _, _) ->
+            Ident.same p_id e_id
+        | Tpat_tuple ps, Texp_tuple es -> aux ps es
+        | _, _ -> false)
+        && aux p_rest e_rest
+    | [], [] -> true
+    | _ -> false
+  in
+  aux [ p ] [ e ]

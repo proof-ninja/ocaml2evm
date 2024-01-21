@@ -12,5 +12,10 @@ and abi_type = Func
 and param_type = Uint256 | Int256 | Address
 and state_mutability = Pure | View | Nonpayable | Payable
 
+val string_of_mutability : state_mutability -> string
+
+val stronger_mutability :
+  state_mutability -> state_mutability -> state_mutability
+
 val signature_of_function : abi -> string
 val json_of_abis : abi list -> Yojson.Basic.t

@@ -3,3 +3,5 @@ val count_vars_in_type : Types.type_expr -> string list option
 
 val flatten_tuple_pat :
   Typedtree.pattern -> (string * string list) list * string list
+
+val same_pat_exp : Typedtree.pattern -> Typedtree.expression -> bool
