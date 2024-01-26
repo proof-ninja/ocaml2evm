@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+        - main
+
+jobs:
+  build:
+    name: Build & Run example
+    strategy:
+      matrix:
+        os: [ 'ubuntu-latest', 'macos-latest' ]
+        ocaml-version:
+          - 4.14.1
+          - 5.1.1
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup OCaml ${{ matrix.ocaml-version }}
+        uses: ocaml/setup-ocaml@v2
+        with:
+          ocaml-compiler: ${{ matrix.ocaml-version }}
+          dune-cache: ${{ matrix.os != 'macos-latest' }}
+
+      - name: Install solc in Ubuntsu
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        run: |
+          sudo add-apt-repository ppa:ethereum/ethereum
+          sudo apt-get update
+          sudo apt-get install -y solc
+
+      - name: Install solc in macOS
+        if: ${{ matrix.os == 'macos-latest' }}
+        run: |
+          brew tap ethereum/ethereum
+          brew install solidity
+
+      - name: Install dependencies
+        run: opam install . --deps-only --with-doc --verbose
+
+      - name: Build
+        run: opam exec -- dune build
+
+      - name: Run `erc20.ml`
+        run: opam exec -- dune exec ocamyulc sample/src/erc20.ml
