@@ -45,6 +45,7 @@ let get_storage_num =
       (get_storage_num_aux t1, get_storage_num_aux t2)
   | _ -> assert false
 
+(* translates types to input field of ABI *)
 let abi_input_of_typ typ =
   let abi_of_constr = function
     | Ttyp_constr (Path.Pident s, _, _) ->
@@ -65,6 +66,7 @@ let abi_input_of_typ typ =
         [] ctyp_list
   | _ -> raise Not_implemented
 
+(* translates types to output field of ABI *)
 let abi_output_of_typ typ =
   let abi_of_constr = function
     | Ttyp_constr (Path.Pident s, _, _) ->
@@ -157,6 +159,7 @@ let abi_of_signature func_name { arg_type = arg; return_type = ret; _ } mut_maps
     abi_mutability = mut;
   }
 
+(* getting a return function from ABI *)
 let return_func_of_dispacther { abi_outputs = outputs; _ } =
   let n = List.length outputs in
   gen_return_uint_name n
@@ -263,9 +266,8 @@ let gen_dispacther ~func_name ~storage_num ~mut_storage_num ~is_set_storage
     in
     Some (Case (keccak_256_for_abi (signature_of_function abi), case_result))
 
-(* generating ABI, default functions, and dispatcher functions *)
-let gen_triple_abi_dispatcher_defs { sig_items = sigs; _ } mut_maps
-    set_storage_flags =
+(* generating ABI and dispatcher functions *)
+let gen_abi_and_dispatcher { sig_items = sigs; _ } mut_maps set_storage_flags =
   let types, vals = split_module_sig sigs in
   let storage_name, mut_storage_name =
     match types with
@@ -303,7 +305,7 @@ let gen_triple_abi_dispatcher_defs { sig_items = sigs; _ } mut_maps
       (abi :: abis, dispatcher :: dispatchers))
     ([], []) vals
 
-(* translate external functions using `translate_function_to_yul` *)
+(* translate external functions *)
 let translate_external_func = function
   | binding :: [] ->
       let e = Anormal_ir.normalize binding in
@@ -410,6 +412,7 @@ let json_of_yul abis yul_code contract_name =
     [ json_of_abis abis; bytecode; deployed_bytecode ]
   |> Yojson.Basic.pretty_to_string
 
+(* writes down the json file *)
 let write_json_contract source_file contract_name result_json =
   let result_path =
     "./" :: String.split_on_char '/' source_file
@@ -467,7 +470,7 @@ let backend source_file Typedtree.{ structure; _ } =
             in
             let funcs, mut_maps = List.split funcs_maps in
             let abis, cases =
-              gen_triple_abi_dispatcher_defs sigs mut_maps set_storage_flags
+              gen_abi_and_dispatcher sigs mut_maps set_storage_flags
             in
             (* getting the number of storage *)
             let storage_num, mut_storage_num = get_storage_num types in

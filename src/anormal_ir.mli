@@ -1,2 +1,2 @@
-(* val normalize : Typedtree.expression -> Normalized_ir_ast.aexp *)
+(* translating the function declaration *)
 val normalize : Typedtree.value_binding -> Normalized_ir_ast.adecl

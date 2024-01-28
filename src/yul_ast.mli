@@ -102,9 +102,11 @@ val sint_add_def : statement
 val sint_sub_def : statement
 val sint_mul_def : statement
 val sint_div_def : statement
-(* val default_function_defs : block *)
 
+(* auxiliary function *)
 val hex_of_int : int -> lit
+
+(* getting/updating/resetting default functions *)
 val get_default_function_defs : unit -> block
 val update_default_function_defs : statement -> unit
 val reset_default_function_defs : unit -> unit

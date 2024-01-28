@@ -12,6 +12,9 @@ The compiler that:
 By `dune exec ocamyulc <parent>/<dirname>/<filename>.ml`, 
 `.json` file for `<filename>.ml` is generated and saved in `<parent>/contracts` directory.
 
+Before compiling, you need to install `solc`, not `solcjs`. 
+For installation, refer to https://docs.soliditylang.org/en/latest/installing-solidity.html#linux-packages.
+
 ## Examples
 
 See `sample/READEME.md`.
