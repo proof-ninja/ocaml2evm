@@ -1,4 +1,15 @@
 opam-version: "2.0"
+name: "ocaml2evm"
+version: "1.0.0"
+maintainer: "DMM Web3"
 build: [
   ["dune" "build"]
 ]
+depends: [
+  "yojson" {= "2.1.1"}
+  "digestif" {= "1.1.4"}
+]
+description: """The compiler that:
+  * generates a Yul (https://docs.soliditylang.org/en/latest/yul.html) code from an OCaml code,
+  * passes the compiled result to solc, and
+  * saves the result .json file including an ABI and an EVM code."""
