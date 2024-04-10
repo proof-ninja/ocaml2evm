@@ -1,7 +1,7 @@
-(* binary operators for signed/unsigned integers *)
+(** binary operators for signed/unsigned integers *)
 type bop = UAdd | USub | UMul | UDiv | SAdd | SSub | SMul | SDiv
 
-(* a common part of value expressions *)
+(** a common part of value expressions *)
 type value =
   | Var of string
   | IntV of int

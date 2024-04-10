@@ -58,10 +58,10 @@ and code = Code of block
 val string_of_yul : obj -> string
 val json_string_of_yul : obj -> string
 
-(* names of default runtime *)
+(** names of default runtime *)
 val runtime : strlit
 
-(* deploy code part *)
+(** deploy code part *)
 val deploy_code : code
 
 (* names of default functions *)
@@ -103,10 +103,10 @@ val sint_sub_def : statement
 val sint_mul_def : statement
 val sint_div_def : statement
 
-(* auxiliary function *)
+(** auxiliary function *)
 val hex_of_int : int -> lit
 
-(* getting/updating/resetting default functions *)
+(** getting/updating/resetting default functions *)
 val get_default_function_defs : unit -> block
 val update_default_function_defs : statement -> unit
 val reset_default_function_defs : unit -> unit

@@ -1,4 +1,4 @@
-(*
+(**
    translating the function declaration to Yul code
 
    This function returns two values.
