@@ -5,9 +5,10 @@ type acexp =
   | AVal of value
   | AApp of (value * value list * Types.type_expr)
   | ATuple of value list
+  | AIf of value * aexp * aexp
 
 (** computation expressions *)
-type aexp =
+and aexp =
   | ACexp of acexp
   | ASeq of acexp * aexp
   | ALetin of (string list * (string * string list) list) * acexp * aexp

@@ -35,6 +35,7 @@ let rename_cexp rename e mut =
       let mut = application_mut mut f in
       (AApp (f, rename_avals rename args, t), mut)
   | ATuple el -> (ATuple (rename_avals rename el), mut)
+  | AIf _ -> assert false
   | _ -> (e, mut)
 
 let cexp_to_exp e =
@@ -51,6 +52,7 @@ let cexp_to_exp e =
           let res_var = Utils.fresh_var () in
           Letin ([ res_var ], LApp (f, args), Rexp (RVal (Var res_var))))
   | ATuple el -> Rexp (RTuple el)
+  | AIf _ -> assert false
 
 let rec remove_tuple rename e mut =
   match e with
@@ -77,8 +79,9 @@ let rec remove_tuple rename e mut =
           in
           (gen_tuple_let (vars, el), mut)
       | AVal arg -> (Letin (vars, LVal arg, e2'), mut)
-      | AApp (f, args, _) -> (Letin (vars, LApp (f, args), e2'), mut))
-
+      | AApp (f, args, _) -> (Letin (vars, LApp (f, args), e2'), mut)
+      | AIf _ -> assert false)
+      
 let normalize { name = func_name; arg_pats = args; body; mutability = mut } =
   let renames, args =
     List.fold_left

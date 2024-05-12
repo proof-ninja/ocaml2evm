@@ -19,6 +19,7 @@ let get_bop s =
   else if s = "/" then SDiv
   else assert false
 
+(* operation functions made usable especially, such as replace caller*)
 let pdot_to_aval p s =
   match p with
   | Path.Pdot (Path.Pident id, "Hashtbl") ->
@@ -33,7 +34,9 @@ let pdot_to_aval p s =
       else assert false
   | _ -> assert false
 
-let rec normalize_aux p { exp_desc = e; exp_type = t; _ } k =
+  (* The first argument p is a storage. To check whether the storage changes, it is needed. 
+     The last argument k is a continue. A first argument of k is hole, and a first element of a return value is AST with the hole.*)
+let rec normalize_aux p { exp_desc = e; exp_type = t; _ } k :aexp * bool=
   match e with
   | Texp_ident (Pident s, _, _) ->
       (AVal (Var (Ident.unique_name s)), t, false) |> k
@@ -98,8 +101,18 @@ let rec normalize_aux p { exp_desc = e; exp_type = t; _ } k =
       normalize_aux None e1 (fun (e1', _, _) ->
           let e, non_update_stor = normalize_aux p e2 k in
           (ALetin ((vars, rename), e1', e), non_update_stor))
+  | Texp_ifthenelse (e1, e2, e3) -> 
+    let a, b = normalize_aux p e2 (fun (x, _, b) -> (ACexp x, b)) in
+    let e3' = match e3 with Some e -> e | _ -> assert false in
+    let a2, b2 = normalize_aux p e3' (fun (x, _, b) -> (ACexp x, b)) in
+    normalize_name e1 (fun x -> k (AIf(x, a, a2), t, b && b2 ))
   | _ -> assert false
 
+  (* | A.If(e1,e2,e3) ->
+    normalize_name e1 (fun x ->
+      k (A.If(x, normalize e2 id, normalize e3 id))) *)
+
+(* when a new variable is needed *)
 and normalize_name e k =
   normalize_aux None e (fun (e', t, _) ->
       match e' with
@@ -112,6 +125,9 @@ and normalize_name e k =
               (ALetin (([ var ], [ (var, xs) ]), e', e), non_update_stor)
           | None -> (ALetin (([ var ], []), e', e), non_update_stor)))
 
+
+(* because a second argument is a storage and we have to check whether it is possible to change (for nonpayable/view),
+   the storage argument is distinct as stor_pat*)
 let rec expand_function_decl n stor_pat e =
   match e with
   | {
