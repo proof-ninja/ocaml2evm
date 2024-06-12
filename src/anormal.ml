@@ -25,19 +25,6 @@ let application_mut mut = function
   | Bop _ | HashFind | Caller -> Abi.stronger_mutability View mut
   | _ -> Abi.stronger_mutability Nonpayable mut
 
-let rename_cexp rename e mut =
-  match e with
-  | AVal (Var id) -> (
-      match List.find_opt (fun (x, _) -> x = id) rename with
-      | Some (_, ids) -> (ATuple (List.map (fun x -> Var x) ids), mut)
-      | None -> (AVal (Var id), mut))
-  | AApp (f, args, t) ->
-      let mut = application_mut mut f in
-      (AApp (f, rename_avals rename args, t), mut)
-  | ATuple el -> (ATuple (rename_avals rename el), mut)
-  | AIf _ -> assert false
-  | _ -> (e, mut)
-
 let cexp_to_exp e =
   match e with
   | AVal v -> Rexp (RVal v)
@@ -54,11 +41,33 @@ let cexp_to_exp e =
   | ATuple el -> Rexp (RTuple el)
   | AIf _ -> assert false
 
-let rec remove_tuple rename e mut =
+let rename_cexp rename e mut =
+  match e with
+  | AVal (Var id) -> (
+      match List.find_opt (fun (x, _) -> x = id) rename with
+      | Some (_, ids) -> (ATuple (List.map (fun x -> Var x) ids), mut)
+      | None -> (AVal (Var id), mut))
+  | AApp (f, args, t) ->
+      let mut = application_mut mut f in
+      (AApp (f, rename_avals rename args, t), mut)
+  | ATuple el -> (ATuple (rename_avals rename el), mut)
+  | AIf (v, e1, e2) -> 
+    let v2 = match v with
+      | Var id -> (
+        let v2' = match List.find_opt (fun (x, _) -> x = id) rename with
+          | Some (_, ids) -> (match ids with [v] -> Var v | _ -> assert false)
+          | None -> Var id in v2')
+      | _ -> v in
+    (AIf (v2, e1, e2), mut)
+  | _ -> (e, mut)
+
+let rec remove_tuple rename e mut : exp * Abi.state_mutability =
   match e with
   | ACexp e' ->
       let e, mut = rename_cexp rename e' mut in
-      (cexp_to_exp e, mut)
+      (match e with 
+      | AIf _ -> (cexp_to_exp e, mut)
+      | _ -> (cexp_to_exp e, mut))
   | ASeq (e1, e2) -> (
       match rename_cexp rename e1 mut with
       | AApp (f, args, _), mut ->
@@ -80,7 +89,10 @@ let rec remove_tuple rename e mut =
           (gen_tuple_let (vars, el), mut)
       | AVal arg -> (Letin (vars, LVal arg, e2'), mut)
       | AApp (f, args, _) -> (Letin (vars, LApp (f, args), e2'), mut)
-      | AIf _ -> assert false)
+      | AIf (v, e1'', e2'') -> 
+        let e3, mut1 = remove_tuple rename e1'' mut in
+        let e4, mut2 = remove_tuple rename e2'' mut in
+        (Letin (vars, LIf(v, e3, e4), e2'), Abi.stronger_mutability mut1 mut2))
       
 let normalize { name = func_name; arg_pats = args; body; mutability = mut } =
   let renames, args =

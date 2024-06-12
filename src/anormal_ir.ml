@@ -35,7 +35,7 @@ let pdot_to_aval p s =
   | _ -> assert false
 
   (* The first argument p is a storage. To check whether the storage changes, it is needed. 
-     The last argument k is a continue. A first argument of k is hole, and a first element of a return value is AST with the hole.*)
+     The last argument k is a continuation. A first argument of k is hole, and a first element of a return value is AST with the hole.*)
 let rec normalize_aux p { exp_desc = e; exp_type = t; _ } k :aexp * bool=
   match e with
   | Texp_ident (Pident s, _, _) ->
@@ -105,12 +105,9 @@ let rec normalize_aux p { exp_desc = e; exp_type = t; _ } k :aexp * bool=
     let a, b = normalize_aux p e2 (fun (x, _, b) -> (ACexp x, b)) in
     let e3' = match e3 with Some e -> e | _ -> assert false in
     let a2, b2 = normalize_aux p e3' (fun (x, _, b) -> (ACexp x, b)) in
-    normalize_name e1 (fun x -> k (AIf(x, a, a2), t, b && b2 ))
+    let a, b = normalize_name e1 (fun x -> k (AIf(x, a, a2), t, b && b2 )) in
+    a, b
   | _ -> assert false
-
-  (* | A.If(e1,e2,e3) ->
-    normalize_name e1 (fun x ->
-      k (A.If(x, normalize e2 id, normalize e3 id))) *)
 
 (* when a new variable is needed *)
 and normalize_name e k =
