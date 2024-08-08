@@ -66,7 +66,10 @@ let rec remove_tuple rename e mut : exp * Abi.state_mutability =
   | ACexp e' ->
       let e, mut = rename_cexp rename e' mut in
       (match e with 
-      | AIf _ -> (cexp_to_exp e, mut)
+      | AIf (v, e1, e2) -> (
+        let e1', mut1 = remove_tuple rename e1 mut in
+        let e2', mut2 = remove_tuple rename e2 mut in
+        (If(v, e1', e2'), Abi.stronger_mutability mut1 mut2))
       | _ -> (cexp_to_exp e, mut))
   | ASeq (e1, e2) -> (
       match rename_cexp rename e1 mut with

@@ -49,6 +49,7 @@ let letexp_to_yul = function
       EVM
         (Sload (FunctionCall (get_hash_slot, [ aval_to_yul h; aval_to_yul x ])))
   | LApp (Caller, [ UnitV ]) -> EVM Caller
+  | LIf _ -> assert false
   | _ -> assert false
 
 let return_exp vals acc =
@@ -76,6 +77,7 @@ let rec translate_body_aux e acc =
   | Letin (vars, e1, e2) ->
       let acc = Let ((List.hd vars, List.tl vars), letexp_to_yul e1) :: acc in
       translate_body_aux e2 acc
+  | If _ -> assert false
 
 let translate_function_body e =
   let statements, return_vars = translate_body_aux e [] in
