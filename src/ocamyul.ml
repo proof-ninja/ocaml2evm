@@ -509,7 +509,7 @@ let backend source_file Typedtree.{ structure; _ } =
                            ((dispatcher :: funcs) @ get_default_function_defs ()),
                          None )) )
             in
-            (* print_endline (string_of_yul yul_code) *)
+            (* print_endline (string_of_yul yul_code); *)
             let result_json = json_of_yul abis yul_code contract_name in
             write_json_contract source_file contract_name result_json
         | _ -> raise Not_implemented

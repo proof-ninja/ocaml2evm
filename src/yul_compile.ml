@@ -82,7 +82,7 @@ let rec translate_body_aux e acc ret_vars=
         let e2_block, _ = translate_body_aux e2' [] ret_vars in
         let e2_block = List.rev e2_block in
         let v = aval_to_yul v in
-        Switch (v, [Case(Bool true, e1_block); Case(Bool false, e2_block)], Default []) :: acc   (*initialization with 0*)
+        Switch (v, [Case(Dec 1, e1_block); Case(Dec 0, e2_block)], Default []) :: acc   (*initialization with 0*)
         | _ -> Exp (letexp_to_yul e1) :: acc) in
       (* let acc = Exp (letexp_to_yul e1) :: acc in *)
       translate_body_aux e2 acc ret_vars
