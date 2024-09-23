@@ -9,6 +9,7 @@ The compiler that:
 
 ## How to Build
 
+At First, do `dune build` (this only needs to be done at the first build).
 By `dune exec ocamyulc <parent>/<dirname>/<filename>.ml`, 
 `.json` file for `<filename>.ml` is generated and saved in `<parent>/contracts` directory.
 

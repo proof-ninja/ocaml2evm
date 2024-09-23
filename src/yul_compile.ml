@@ -93,7 +93,7 @@ let rec translate_body_aux e acc ret_vars=
         let e2_block, _ = translate_body_aux e2' [] vars in
         let e2_block = List.rev e2_block in
         let v = aval_to_yul v in  
-        let acc = Switch (v, [Case(Bool true, e1_block); Case(Bool false, e2_block)], Default []) :: (Let((List.hd vars, List.tl vars), Literal (Dec 0))) :: acc in   (*initialization with 0*)
+        let acc = Switch (v, [Case(Dec 1, e1_block); Case(Dec 0, e2_block)], Default []) :: (Let((List.hd vars, List.tl vars), Literal (Dec 0))) :: acc in   (*initialization with 0*)
         translate_body_aux e2 acc ret_vars
         |_ -> let acc = Let ((List.hd vars, List.tl vars), letexp_to_yul e1) :: acc in
         translate_body_aux e2 acc ret_vars) in a
@@ -104,7 +104,7 @@ let rec translate_body_aux e acc ret_vars=
       let e2' = List.rev e2' in
       assert (vars1 = vars2);
       let v = aval_to_yul v in
-      Switch (v, [Case(Bool true, e1'); Case(Bool false, e2')], Default []) :: acc, vars1
+      Switch (v, [Case(Dec 1, e1'); Case(Dec 0, e2')], Default []) :: acc, vars1
 
 let translate_function_body e =
   let statements, return_vars = translate_body_aux e [] [] in
