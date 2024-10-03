@@ -26,18 +26,23 @@ let application_mut mut = function
   | _ -> Abi.stronger_mutability Nonpayable mut
 
 let cexp_to_exp e =
+  let open Types in
   match e with
   | AVal v -> Rexp (RVal v)
   | AApp (f, args, t) -> (
-      match Utils.count_vars_in_type t with
-      | Some vars ->
-          Letin
-            ( vars,
-              LApp (f, args),
-              Rexp (RTuple (List.map (fun x -> Var x) vars)) )
-      | None ->
-          let res_var = Utils.fresh_var () in
-          Letin ([ res_var ], LApp (f, args), Rexp (RVal (Var res_var))))
+      let x = (match get_desc t with Tconstr (Path.Pident p, [], _) -> if Ident.name p = "unit" then Some (Seq(LApp (f, args),Rexp (RVal UnitV))) else None| _ -> None) in
+      match x with 
+      Some x' -> x'
+      | _ ->(
+        match Utils.count_vars_in_type t with
+        | Some vars ->
+            Letin
+              ( vars,
+                LApp (f, args),
+                Rexp (RTuple (List.map (fun x -> Var x) vars)) )
+        | None ->
+            let res_var = Utils.fresh_var () in
+            Letin ([ res_var ], LApp (f, args), Rexp (RVal (Var res_var)))))
   | ATuple el -> Rexp (RTuple el)
   | AIf _ -> assert false
 
@@ -66,13 +71,21 @@ let rec remove_tuple rename e mut : exp * Abi.state_mutability =
   | ACexp e' ->
       let e, mut = rename_cexp rename e' mut in
       (match e with 
-      | AIf _ -> (cexp_to_exp e, mut)
+      | AIf (v, e1, e2) -> (
+        let e1', mut1 = remove_tuple rename e1 mut in
+        let e2', mut2 = remove_tuple rename e2 mut in
+        (If(v, e1', e2'), Abi.stronger_mutability mut1 mut2))
       | _ -> (cexp_to_exp e, mut))
   | ASeq (e1, e2) -> (
       match rename_cexp rename e1 mut with
       | AApp (f, args, _), mut ->
           let e, mut = remove_tuple rename e2 mut in
           (Seq (LApp (f, args), e), mut)
+      | AIf (v, e11, e12), mut -> 
+        let e11', mut1 = remove_tuple rename e11 mut in
+        let e12', mut2 = remove_tuple rename e12 mut in 
+        let e, mut = remove_tuple rename e2 (Abi.stronger_mutability mut1 mut2) in
+        (Seq (LIf (v, e11', e12'), e), mut)
       | _ -> assert false)
   | ALetin ((vars, new_rename), e1, e2) -> (
       let rename = new_rename @ rename in

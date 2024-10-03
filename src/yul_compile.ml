@@ -12,6 +12,22 @@ let aval_to_yul = function
 let translate_aval_args v =
   match v with UnitV -> None | _ -> Some (aval_to_yul v)
 
+(* The case is divided by whether new variables for the return values are needed.
+   If ret_vars is empty, new variables are needed, and if not, ret_vars is the list of names of return values. *)
+let return_exp vals acc (ret_vars:id list (*option*)) =
+  let vals = List.filter (fun x -> not (x = UnitV)) vals in
+  let rec assign_rets vals acc_exp acc_rets ret_vars'=
+    match vals with
+    | [] -> (acc_exp, acc_rets)
+    | v :: vs ->
+        let ret, ret_vars' = (match ret_vars' with [] -> Utils.fresh_var (), [] | hd :: tl -> hd, tl ) in
+        assign_rets vs
+          (Assign ((ret, []), aval_to_yul v) :: acc_exp)
+          (ret :: acc_rets)
+          ret_vars'
+  in
+  assign_rets vals acc [] ret_vars
+
 let letexp_to_yul = function
   | LVal v -> aval_to_yul v
   | LApp (Var s, vals) ->
@@ -51,34 +67,47 @@ let letexp_to_yul = function
   | LApp (Caller, [ UnitV ]) -> EVM Caller
   | _ -> assert false
 
-let return_exp vals acc =
-  let vals = List.filter (fun x -> not (x = UnitV)) vals in
-  let rec assign_rets vals acc_exp acc_rets =
-    match vals with
-    | [] -> (acc_exp, acc_rets)
-    | v :: vs ->
-        let ret = Utils.fresh_var () in
-        assign_rets vs
-          (Assign ((ret, []), aval_to_yul v) :: acc_exp)
-          (ret :: acc_rets)
-  in
-  assign_rets vals acc []
-
-let rec translate_body_aux e acc =
+  (* an argument "ret_vars" denotes the list of names of return variables.
+  if ret_vars is empty, it means we have to make new variables.*)
+let rec translate_body_aux e acc ret_vars=
   match e with
   | Rexp e' -> (
       match e' with
-      | RTuple vals -> return_exp vals acc
-      | RVal v -> return_exp [ v ] acc)
+      | RTuple vals -> return_exp vals acc ret_vars
+      | RVal v -> return_exp [ v ] acc ret_vars)
   | Seq (e1, e2) ->
-      let acc = Exp (letexp_to_yul e1) :: acc in
-      translate_body_aux e2 acc
+      let acc = (match e1 with LIf (v, e1', e2') -> 
+        let e1_block, _ = translate_body_aux e1' [] [] in
+        let e1_block = List.rev e1_block in
+        let e2_block, _ = translate_body_aux e2' [] ret_vars in
+        let e2_block = List.rev e2_block in
+        let v = aval_to_yul v in
+        Switch (v, [Case(Dec 1, e1_block); Case(Dec 0, e2_block)], Default []) :: acc   (*initialization with 0*)
+        | _ -> Exp (letexp_to_yul e1) :: acc) in
+      (* let acc = Exp (letexp_to_yul e1) :: acc in *)
+      translate_body_aux e2 acc ret_vars
   | Letin (vars, e1, e2) ->
-      let acc = Let ((List.hd vars, List.tl vars), letexp_to_yul e1) :: acc in
-      translate_body_aux e2 acc
+      let a = (match e1 with LIf (v, e1', e2') -> 
+        let e1_block, _ = translate_body_aux e1' [] vars in
+        let e1_block = List.rev e1_block in
+        let e2_block, _ = translate_body_aux e2' [] vars in
+        let e2_block = List.rev e2_block in
+        let v = aval_to_yul v in  
+        let acc = Switch (v, [Case(Dec 1, e1_block); Case(Dec 0, e2_block)], Default []) :: (Let((List.hd vars, List.tl vars), Literal (Dec 0))) :: acc in   (*initialization with 0*)
+        translate_body_aux e2 acc ret_vars
+        |_ -> let acc = Let ((List.hd vars, List.tl vars), letexp_to_yul e1) :: acc in
+        translate_body_aux e2 acc ret_vars) in a
+  | If (v, e1, e2) -> 
+      let e1', vars1 = translate_body_aux e1 acc ret_vars in
+      let e1' = List.rev e1' in
+      let e2', vars2 = translate_body_aux e2 acc vars1 in
+      let e2' = List.rev e2' in
+      assert (vars1 = vars2);
+      let v = aval_to_yul v in
+      Switch (v, [Case(Dec 1, e1'); Case(Dec 0, e2')], Default []) :: acc, vars1
 
 let translate_function_body e =
-  let statements, return_vars = translate_body_aux e [] in
+  let statements, return_vars = translate_body_aux e [] [] in
   (List.rev statements, List.rev return_vars)
 
 let translate_function

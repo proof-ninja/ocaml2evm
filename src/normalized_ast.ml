@@ -1,7 +1,5 @@
 open Normalized_common_ast
 
-exception Whoo of int
-
 type resexp = RVal of value | RTuple of value list
 
 type letexp = LVal of value | LApp of (value * value list) | LIf of value * exp * exp
