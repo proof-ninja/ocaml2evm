@@ -23,7 +23,7 @@ let string_of_bop = function
   | And -> "&&"
   | Or -> "||"
   | Not -> "not"
-  | Eq -> "=="
+  | Eq -> "="
   | Neq -> "!="
   | Lt -> "<"
   | Gt -> ">"

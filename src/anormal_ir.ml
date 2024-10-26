@@ -21,7 +21,7 @@ let get_bop s =
     | "&&" -> And
     | "||" -> Or
     | "not" -> Not
-    | "==" -> Eq
+    | "=" -> Eq
     | "!=" -> Neq
     | "<" -> Lt
     | ">" -> Gt
