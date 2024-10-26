@@ -1,31 +1,36 @@
 open OCamYul.Primitives
 
-module SimpleHashIf : sig
+module Mytest : sig
   type storage
-  type mut_storage
 
-  val set : address * uint -> storage -> mut_storage -> unit * storage
-  val get : address -> storage -> mut_storage -> uint * storage
-  val set_caller : uint -> storage -> mut_storage -> unit * storage
+  val set : sint -> storage -> unit * storage
+  val get : unit -> storage -> sint * storage
+  val lt : sint * sint -> storage -> bool * storage
+  val gt : sint * sint -> storage -> bool * storage
+  val lte : sint * sint -> storage -> bool * storage
+  val gte : sint * sint -> storage -> bool * storage
+  val xor : bool * bool -> storage -> bool * storage
+  val xor2 : bool * bool -> storage -> bool * storage
+  val max : sint * sint -> storage -> sint * storage
 end = struct
-  type storage = unit
-  type mut_storage = (address, uint) Hashtbl.t
+  type storage = sint
 
-  let set (x, y) () h =
-    (if true then let a = UInt 2 in let b = UInt 3 in let c = a +^ b in Hashtbl.replace h x y else ()); let a = if false then SInt 1 else SInt 2 in let b = SInt 2 in let c = a + b in 
-    ((), ())
+  let set n _ = ((), n)
+  let get () s = (s, s)
+  let lt (x, y) s = (x < y, s)
+  let gt (x, y) s = (x > y, s)
+  let lte (x, y) s = (x <= y, s)
+  let gte (x, y) s = (x >= y, s)
 
-  let get x () h = 
-    let a = 
-      if let c = true in c 
-        then SInt 1 
-        else let b = if false 
-          then SInt 3
-          else SInt 4 in b + b
-    in (Hashtbl.find h x, ())
+  let xor (x, y) s =
+    let b = (x || y) && not (x && y) in
+    (b, s)
 
+  let xor2 (x, y) s =
+    let b = if x then (if y then false else true) else (if y then true else false) in
+    (b, s)
 
-  let set_caller x () h =
-    Hashtbl.replace h (caller ()) x;
-    ((), ())
+  let max (n, m) s =
+    let b = n > m in
+    ((if b then n else m), s)
 end

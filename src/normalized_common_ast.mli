@@ -1,5 +1,5 @@
 (** binary operators for signed/unsigned integers *)
-type bop = UAdd | USub | UMul | UDiv | SAdd | SSub | SMul | SDiv
+type bop = UAdd | USub | UMul | UDiv | SAdd | SSub | SMul | SDiv | And | Or | Not | Eq | Neq | Lt | Gt | Lte | Gte
 
 (** a common part of value expressions *)
 type value =

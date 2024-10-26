@@ -55,7 +55,17 @@ let letexp_to_yul = function
       | SAdd -> gen_bop_call sint_add_def sint_add
       | SSub -> gen_bop_call sint_sub_def sint_sub
       | SMul -> gen_bop_call sint_mul_def sint_mul
-      | SDiv -> gen_bop_call sint_div_def sint_div)
+      | SDiv -> gen_bop_call sint_div_def sint_div
+      | And -> assert false
+      | Or -> assert false
+      | Eq -> EVM (Eq (v1, v2))
+      | Neq -> EVM (Iszero (EVM (Eq (v1, v2))))
+      | Lt -> EVM (Lt (v1, v2))
+      | Gt -> EVM (Gt (v1, v2))
+      | Lte -> EVM (Iszero (EVM (Gt (v1, v2))))
+      | Gte -> EVM (Iszero (EVM (Lt (v1, v2))))
+      | _ -> assert false)
+  | LApp (Bop Not,[v]) -> let v = aval_to_yul v in EVM (Iszero v)
   | LApp (HashReplace, [ h; x; y ]) ->
       EVM
         (Sstore
@@ -95,6 +105,14 @@ let rec translate_body_aux e acc ret_vars=
         let v = aval_to_yul v in  
         let acc = Switch (v, [Case(Dec 1, e1_block); Case(Dec 0, e2_block)], Default []) :: (Let((List.hd vars, List.tl vars), Literal (Dec 0))) :: acc in   (*initialization with 0*)
         translate_body_aux e2 acc ret_vars
+        | LApp (Bop ((And | Or) as b), [v1; v2]) -> 
+          assert (List.length vars = 1);
+          let var = List.hd vars in
+          let v1 = aval_to_yul v1 in
+          let v2 = aval_to_yul v2 in
+          let bexp = (match b with And -> v1 | Or -> EVM (Iszero v1)| _ -> assert false) in
+          let acc = (Yul_ast.If (bexp, [Assign ((var, []), v2)])) :: Let ((var, []), v1) :: acc in
+          translate_body_aux e2 acc ret_vars
         |_ -> let acc = Let ((List.hd vars, List.tl vars), letexp_to_yul e1) :: acc in
         translate_body_aux e2 acc ret_vars) in a
   | If (v, e1, e2) -> 

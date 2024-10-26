@@ -230,6 +230,7 @@ let get_hash_slot = "getHashSlot"
 let selector = "selector"
 let decode_as_uint = "decodeAsUint"
 let decode_as_address = "decodeAsAddress"
+let decode_as_bool = "decodeAsBool"
 let uint_add = "uintAdd"
 let uint_sub = "uintSub"
 let uint_mul = "uintMul"
@@ -365,6 +366,17 @@ let decode_as_address_def =
       [ return_arg ],
       [ Assign ((return_arg, []), FunctionCall (decode_as_uint, [ ID arg ])) ]
     )
+
+    let decode_as_bool_def =
+      let arg = "offset" in
+      let return_arg = "v" in
+      FunctionDef
+      ( decode_as_bool,
+        [ arg ],
+        [ return_arg ],
+        [ Assign ((return_arg, []), FunctionCall (decode_as_uint, [ ID arg ])) ]
+      )
+    
 
 let default_revert_def =
   Default [ Exp (EVM (Revert (Literal (Dec 0), Literal (Dec 0)))) ]
@@ -544,11 +556,11 @@ let sint_div_def =
    adding some functions to default happens in different phases *)
 
 let default_function_defs =
-  ref [ selector_def; decode_as_uint_def; decode_as_address_def ]
+  ref [ selector_def; decode_as_uint_def; decode_as_address_def; decode_as_bool_def ]
 
 let reset_default_function_defs () =
   default_function_defs :=
-    [ selector_def; decode_as_uint_def; decode_as_address_def ]
+    [ selector_def; decode_as_uint_def; decode_as_address_def; decode_as_bool_def ]
 
 let get_default_function_defs () = !default_function_defs
 

@@ -9,7 +9,26 @@ let const_to_aval = function
   | _ -> assert false
 
 let get_bop s =
-  if s = "+^" then UAdd
+  match s with
+    | "+^" -> UAdd
+    | "-^" -> USub
+    | "*^" -> UMul
+    | "/^" -> UDiv
+    | "+" -> SAdd
+    | "-" -> SSub
+    | "*" -> SMul
+    | "/" -> SDiv
+    | "&&" -> And
+    | "||" -> Or
+    | "not" -> Not
+    | "==" -> Eq
+    | "!=" -> Neq
+    | "<" -> Lt
+    | ">" -> Gt
+    | "<=" -> Lte
+    | ">=" -> Gte
+    | _ -> assert false
+  (*if s = "+^" then UAdd
   else if s = "-^" then USub
   else if s = "*^" then UMul
   else if s = "/^" then UDiv
@@ -17,7 +36,7 @@ let get_bop s =
   else if s = "-" then SSub
   else if s = "*" then SMul
   else if s = "/" then SDiv
-  else assert false
+  else assert false*)
 
 (* operation functions made usable especially, such as replace caller*)
 let pdot_to_aval p s =
@@ -32,6 +51,7 @@ let pdot_to_aval p s =
       if Ident.name id = "OCamYul" then
         if s = "caller" then Caller else Bop (get_bop s)
       else assert false
+  | Path.Pident id -> if Ident.name id = "Stdlib" then Bop (get_bop s) else assert false
   | _ -> assert false
 
   (* The first argument p is a storage. To check whether the storage changes, it is needed. 
