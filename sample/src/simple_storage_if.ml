@@ -1,6 +1,6 @@
 open OCamYul.Primitives
 
-module Mytest : sig
+module SimpleStorageIf : sig
   type storage
 
   val set : sint -> storage -> unit * storage
