@@ -50,7 +50,9 @@ let abi_input_of_typ typ =
   let abi_of_constr = function
     | Ttyp_constr (Path.Pident s, _, _) ->
         let s = Ident.name s in
-        if s = "unit" then [] else raise Not_implemented
+        if s = "unit" then [] 
+        else if s = "bool" then [ { input_name = ""; input_type = Bool } ]
+        else raise Not_implemented
     | Ttyp_constr (Path.Pdot (_, s), _, _) ->
         if s = "uint" then [ { input_name = ""; input_type = Uint256 } ]
         else if s = "sint" then [ { input_name = ""; input_type = Int256 } ]
@@ -71,7 +73,9 @@ let abi_output_of_typ typ =
   let abi_of_constr = function
     | Ttyp_constr (Path.Pident s, _, _) ->
         let s = Ident.name s in
-        if s = "unit" then [] else raise Not_implemented
+        if s = "unit" then [] 
+        else if s = "bool" then [ { output_name = ""; output_type = Bool } ]
+        else raise Not_implemented
     | Ttyp_constr (Path.Pdot (_, s), _, _) ->
         if s = "uint" then [ { output_name = ""; output_type = Uint256 } ]
         else if s = "sint" then [ { output_name = ""; output_type = Int256 } ]
@@ -170,6 +174,7 @@ let params_of_external_function { abi_inputs = inputs; _ } =
     | Uint256 -> decode_as_uint
     | Int256 -> decode_as_uint
     | Address -> decode_as_address
+    | Bool -> decode_as_bool
   in
   let rec aux n = function
     | [] -> []

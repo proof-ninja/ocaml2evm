@@ -9,7 +9,7 @@ type abi = {
 and input = { input_name : string; input_type : param_type }
 and output = { output_name : string; output_type : param_type }
 and abi_type = Func
-and param_type = Uint256 | Int256 | Address
+and param_type = Uint256 | Int256 | Address | Bool
 and state_mutability = Pure | View | Nonpayable | Payable
 
 let stronger_mutability mut1 mut2 =
@@ -23,6 +23,7 @@ let string_of_param_type = function
   | Uint256 -> "uint256"
   | Int256 -> "int256"
   | Address -> "address"
+  | Bool -> "bool"
 
 let string_of_mutability = function
   | Pure -> "pure"

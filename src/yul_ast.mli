@@ -73,6 +73,7 @@ val get_hash_slot : id
 val selector : id
 val decode_as_uint : id
 val decode_as_address : id
+val decode_as_bool : id
 val uint_add : id
 val uint_sub : id
 val uint_mul : id
@@ -93,6 +94,7 @@ val get_hash_slot_def : statement
 val selector_def : statement
 val decode_as_uint_def : statement
 val decode_as_address_def : statement
+val decode_as_bool_def : statement
 val default_revert_def : default
 val uint_add_def : statement
 val uint_sub_def : statement

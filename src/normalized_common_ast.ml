@@ -1,4 +1,4 @@
-type bop = UAdd | USub | UMul | UDiv | SAdd | SSub | SMul | SDiv
+type bop = UAdd | USub | UMul | UDiv | SAdd | SSub | SMul | SDiv | And | Or | Not | Eq | Neq | Lt | Gt | Lte | Gte
 
 type value =
   | Var of string
@@ -20,6 +20,15 @@ let string_of_bop = function
   | SSub -> "-"
   | SMul -> "*"
   | SDiv -> "/"
+  | And -> "&&"
+  | Or -> "||"
+  | Not -> "not"
+  | Eq -> "="
+  | Neq -> "!="
+  | Lt -> "<"
+  | Gt -> ">"
+  | Lte -> "<="
+  | Gte -> ">="
 
 let string_of_value = function
   | Var s -> s
