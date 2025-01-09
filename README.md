@@ -19,3 +19,7 @@ For installation, refer to https://docs.soliditylang.org/en/latest/installing-so
 ## Examples
 
 See `sample/READEME.md`.
+
+## Syntax
+
+See `definition.md`.
