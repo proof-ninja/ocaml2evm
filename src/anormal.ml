@@ -96,7 +96,9 @@ let rec remove_tuple rename e mut : exp * Abi.state_mutability =
       | ATuple el ->
           let rec gen_tuple_let = function
             | [ x ], [ y ] -> Letin ([ x ], LVal y, e2')
-            | x :: xs, y :: ys -> Letin ([ x ], LVal y, gen_tuple_let (xs, ys))
+            | x :: xs, y :: ys -> if y = UnitV then gen_tuple_let (x::xs, ys) else Letin ([ x ], LVal y, gen_tuple_let (xs, ys))
+            | [], y :: ys -> if y = UnitV then gen_tuple_let ([], ys) else assert false
+            | [], [] -> e2'
             | _ -> assert false
           in
           (gen_tuple_let (vars, el), mut)

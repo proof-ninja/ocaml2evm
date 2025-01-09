@@ -97,7 +97,7 @@ let rec translate_body_aux e acc ret_vars=
       (* let acc = Exp (letexp_to_yul e1) :: acc in *)
       translate_body_aux e2 acc ret_vars
   | Letin (vars, e1, e2) ->
-      let a = (match e1 with LIf (v, e1', e2') -> 
+      (match e1 with LIf (v, e1', e2') -> 
         let e1_block, _ = translate_body_aux e1' [] vars in
         let e1_block = List.rev e1_block in
         let e2_block, _ = translate_body_aux e2' [] vars in
@@ -114,7 +114,7 @@ let rec translate_body_aux e acc ret_vars=
           let acc = (Yul_ast.If (bexp, [Assign ((var, []), v2)])) :: Let ((var, []), v1) :: acc in
           translate_body_aux e2 acc ret_vars
         |_ -> let acc = Let ((List.hd vars, List.tl vars), letexp_to_yul e1) :: acc in
-        translate_body_aux e2 acc ret_vars) in a
+        translate_body_aux e2 acc ret_vars)
   | If (v, e1, e2) -> 
       let e1', vars1 = translate_body_aux e1 acc ret_vars in
       let e1' = List.rev e1' in
