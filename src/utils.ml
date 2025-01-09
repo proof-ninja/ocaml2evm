@@ -32,6 +32,7 @@ let count_vars_in_type t =
 
 let flatten_tuple_pat p =
   let rec count_tuple_elem = function
+    | Tconstr (Path.Pident t_name, _, _) -> if Ident.name t_name = "unit" then 0 else 1
     | Tconstr _ -> 1
     | Ttuple types ->
         List.fold_left
@@ -48,6 +49,7 @@ let flatten_tuple_pat p =
   in
   let rec flatten_tuple_pat_aux (p, t) =
     match (p, get_desc t) with
+    | Tpat_any, Tconstr(Path.Pident t_name, _, _) -> if Ident.name t_name = "unit" then ([], []) else assert false
     | Tpat_any, _ -> ([], [ fresh_var () ])
     | Tpat_construct (_, { cstr_res = res_t; _ }, [], _), Tconstr (_, [], _)
       -> (
@@ -57,7 +59,8 @@ let flatten_tuple_pat p =
         | _ -> assert false)
     | Tpat_var (s, _), t ->
         let n = count_tuple_elem t in
-        if n > 1 then
+        if n = 0 then ([], [])
+        else if n > 1 then
           let renamed = gen_renaming_ids n in
           ([ (Ident.unique_name s, renamed) ], renamed)
         else ([], [ Ident.unique_name s ])
